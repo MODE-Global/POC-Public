@@ -25,13 +25,13 @@ jobs:
         with:
           python-version: '3.10'
 
-#       - name: Bootstrap
-#         working-directory: ./_devops/db_sync
-#         run: make bootstrap files
+      - name: Bootstrap
+        working-directory: ./_devops/db_sync
+        run: make bootstrap files
 
-#       - name: qc-btms
-#         working-directory: ./_devops/db_sync
-#         run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
+      - name: qc-btms
+        working-directory: ./_devops/db_sync
+        run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
 
       - name: Send message to ms teams
         uses: jdcargile/ms-teams-notification@v1.3
