@@ -1,0 +1,48 @@
+name: Database Sync - Tuesday
+on:
+  workflow_dispatch: 
+
+jobs:
+  qc-btms:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
+          if_key_exists: replace
+
+      - name: Configure AWS credentials
+        uses: Fooji/create-aws-profile-action@v1
+        with:
+          profile: sunteck
+          region: us-east-1
+          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+#       - name: Bootstrap
+#         working-directory: ./_devops/db_sync
+#         run: make bootstrap files
+
+#       - name: qc-btms
+#         working-directory: ./_devops/db_sync
+#         run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
+
+      - name: Send message to ms teams
+        uses: jdcargile/ms-teams-notification@v1.3
+        with:
+          github-token: ${{ github.token }}
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Success :white_check_mark:"
+      - name: Team Notify of Failure
+        if: ${{ failure() }}
+        uses: jdcargile/ms-teams-notification@v1.3
+        with:
+          github-token: ${{ github.token }} # this will use the runner's token.
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Failure :o:"
