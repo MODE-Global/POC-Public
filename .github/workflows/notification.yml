@@ -1,4 +1,3 @@
-#
 name: Database Sync - Tuesday
 on:
   workflow_dispatch: 
@@ -47,4 +46,3 @@ jobs:
           github-token: ${{ github.token }} # this will use the runner's token.
           ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Failure :o:"
-          
