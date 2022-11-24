@@ -1,49 +1,117 @@
-name: Database Sync - Tuesday
+name: BTMS Build
+
 on:
-  workflow_dispatch: 
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+    secrets:
+      #
+      MS_TEAMS_WEBHOOK_URI:
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag, sha) to build"
+        required: true
+        type: string
 
 jobs:
-  qc-btms:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GIT_REF: ${{ inputs.ref }}
+      IMAGE_TAG: ${{ inputs.ref }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.ref }}
+
+     #
+
+      - name: Build and push apache image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/btms-apache
+        with:
+          context: btms/apache/
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
+
+      - name: Build and push php image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/btms-php
+        with:
+          context: btms/php/
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
+
+      - name: Build and push rails image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/btms-rails
+        with:
+          context: btms/rails/
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
+
+      - name: Build and push cron image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/btms-cron
+        with:
+          context: btms/provision/
+          file: ./btms/provision/Dockerfile.cron
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
+          build-args: |
+            BRANCH=${{ env.IMAGE_TAG }}
+  notify-team-start:
     runs-on: ubuntu-latest
     steps:
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
-          if_key_exists: replace
-
-      - name: Configure AWS credentials
-        uses: Fooji/create-aws-profile-action@v1
-        with:
-          profile: sunteck
-          region: us-east-1
-          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          
-      - name: Bootstrap
-        working-directory: ./_devops/db_sync
-        run: make bootstrap files
-
-      - name: qc-btms
-        working-directory: ./_devops/db_sync
-        run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
-
-      - name: Send message to ms teams
+      - name: Team Notify Start
         uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
           ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Success :white_check_mark:"
-      - name: Team Notify of Failure
-        if: ${{ failure() }}
+          notification-summary:  "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Started..."
+          notification-color: 28a745
+
+  notify-team-success:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Team Notify of Success
         uses: jdcargile/ms-teams-notification@v1.3
         with:
-          github-token: ${{ github.token }} # this will use the runner's token.
+          github-token: ${{ github.token }}
           ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Failure :o:"
-#
+          notification-summary: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:"
+          notification-color: 33ff66
+
+  notify-team-failure:
+    if: failure()
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Team Notify of Failure
+        uses: jdcargile/ms-teams-notification@v1.3
+        with:
+          github-token: ${{ github.token }}
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Failure :o:"
+          notification-color: ff0000
