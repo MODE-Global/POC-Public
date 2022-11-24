@@ -63,8 +63,10 @@ jobs:
     needs: [deploy]
     runs-on: ubuntu-latest
     steps:
-      - name: Team Notify of Failure
-        uses: jdcargile/ms-teams-notification@v1.3
+      - name: Microsoft Teams Deploy Card
+        uses: toko-bifrost/ms-teams-deploy-card@3.1.2
+
+        #uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
           ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
