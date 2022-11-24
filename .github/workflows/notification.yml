@@ -37,7 +37,7 @@ jobs:
         run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
          
       - name: Team Notify of Success
-        uses: jdcargile/ms-teams-notification@v1.3
+        uses: toko-bifrost/ms-teams-deploy-card@3.1.2
         with:
           github-token: ${{ github.token }}
           ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
@@ -45,7 +45,7 @@ jobs:
           notification-color: 33ff66
       - name: Team Notify of Failure
         if: ${{ failure() }}
-        uses: jdcargile/ms-teams-notification@v1.3
+        uses: toko-bifrost/ms-teams-deploy-card@3.1.2
         with:
           github-token: ${{ github.token }}
           ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
