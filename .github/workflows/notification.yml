@@ -1,72 +1,53 @@
-name: BTMS Deploy Widgets Common
+name: Database Sync - Tuesday
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        required: true
-        type: string
-      app_env:
-        required: true
-        type: string
-    secrets:
-      AWS_ACCESS_KEY_ID:
-        required: true
-      AWS_SECRET_ACCESS_KEY:
-        required: true
-      MS_TEAMS_WEBHOOK_URI:
-        required: true
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Git ref (branch, tag, sha) to deploy"
-        required: true
-        type: string
-      app_env:
-        description: "Application environment (qc, stage, production)"
-        required: true
-        type: string
+  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
+  # schedule:
+  #   - cron: '0 5 * * 2'
 
 jobs:
-  deploy:
+  qc-btms:
     runs-on: ubuntu-latest
-    env:
-      APP_ENV: ${{ inputs.app_env }}
-      NODE_VERSION: 14
     steps:
-      - uses: actions/checkout@v3
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
         with:
-          ref: ${{ inputs.ref }}
-
-      - name: Use Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
+          if_key_exists: replace
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: Fooji/create-aws-profile-action@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          profile: sunteck
+          region: us-east-1
+          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-      - name: Build and deploy widgets
-        env:
-          CI: false
-        run: |
-          cd btms/widgets/
-          npm install --no-bin-links
-          npm run build:${{ env.APP_ENV }}
-          aws s3 cp ./build/fats/assets/widgets s3://sunteck-assets/btms/${{ env.APP_ENV }}/widgets/ --recursive --acl public-read --cache-control "max-age=0,no-cache,no-store,must-revalidate"
-  notify-team-failure:
-    if: failure()
-    needs: [deploy]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Team Notify of Failure
+      - name: Bootstrap
+        working-directory: ./_devops/db_sync
+        run: make bootstrap files
+
+      - name: qc-btms
+        working-directory: ./_devops/db_sync
+        run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
+         
+      - name: Team Notify of Success
         uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS Deploy ${{ inputs.app_env }} Widgets ${{ inputs.ref }} Failure (ONLY Failure are Notified)"
+          ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success"
+          notification-color: 33ff66
+      - name: Team Notify of Failure
+        if: ${{ failure() }}
+        uses: jdcargile/ms-teams-notification@v1.3
+        with:
+          github-token: ${{ github.token }}
+          ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:"
           notification-color: ff0000
