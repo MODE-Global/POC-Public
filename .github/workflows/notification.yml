@@ -40,14 +40,20 @@ jobs:
         uses: toko-bifrost/ms-teams-deploy-card@3.1.2
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success"
-          notification-color: 33ff66
+          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          timezone: US/Eastern
+          #github-token: ${{ github.token }}
+          #ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+          #notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success"
+          #notification-color: 33ff66
       - name: Team Notify of Failure
         if: ${{ failure() }}
         uses: toko-bifrost/ms-teams-deploy-card@3.1.2
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:"
-          notification-color: ff0000
+          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          timezone: US/Eastern
+          #github-token: ${{ github.token }}
+          #ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+          #notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:"
+          #notification-color: ff0000
