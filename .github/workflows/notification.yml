@@ -60,12 +60,12 @@ jobs:
           aws s3 cp ./build/fats/assets/widgets s3://sunteck-assets/btms/${{ env.APP_ENV }}/widgets/ --recursive --acl public-read --cache-control "max-age=0,no-cache,no-store,must-revalidate"
   notify-team-failure:
     if: failure()
-#    needs: [deploy]
+    needs: [deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Microsoft Teams Deploy Card
         uses: toko-bifrost/ms-teams-deploy-card@3.1.2
-#         with:
+ #         with:
 #           github-token: ${{ github.token }}
 #           ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
 #           notification-summary: "BTMS Deploy ${{ inputs.app_env }} Widgets ${{ inputs.ref }} Failure (ONLY Failure are Notified)"
