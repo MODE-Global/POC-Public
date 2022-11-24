@@ -63,16 +63,10 @@ jobs:
     needs: [deploy]
     runs-on: ubuntu-latest
     steps:
-      - name: Microsoft Teams Deploy Card
-        uses: toko-bifrost/ms-teams-deploy-card@3.1.2
- #         with:
-#           github-token: ${{ github.token }}
-#           ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-#           notification-summary: "BTMS Deploy ${{ inputs.app_env }} Widgets ${{ inputs.ref }} Failure (ONLY Failure are Notified)"
-#           notification-color: ff0000
-       # if: always()
+      - name: Team Notify of Failure
+        uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
-          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          timezone: US/Eastern
-        
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS Deploy ${{ inputs.app_env }} Widgets ${{ inputs.ref }} Failure (ONLY Failure are Notified)"
+          notification-color: ff0000
