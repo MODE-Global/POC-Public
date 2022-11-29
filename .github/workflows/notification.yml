@@ -172,38 +172,38 @@ jobs:
           for host in $APP_TARGET_HOST; do
             ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker system prune -a -f && docker volume prune -f && docker network prune -f"
           done
-#   notify-team-start:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Team Notify Start
-#         uses: toko-bifrost/ms-teams-deploy-card@3.1.2
-#         with:
-#           github-token: ${{ github.token }}
-#           webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-#           timezone: US/Eastern
+  notify-team-start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Team Notify Start
+        uses: jdcargile/ms-teams-notification@v1.3
+        with:
+          github-token: ${{ github.token }}
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Start"
+          notification-color: 28a745
 
   notify-team-success:
     needs: [deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Success
-        uses: toko-bifrost/ms-teams-deploy-card@3.1.2
+        uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
-          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          timezone: US/Eastern
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Success"
+          notification-color: 33ff66
 
   notify-team-failure:
     if: failure()
-    #needs: [deploy]
+    needs: [deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
-        uses: toko-bifrost/ms-teams-deploy-card@3.1.2
+        uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
-          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          timezone: US/Eastern
-          
-          
-          #
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Failure"
+          notification-color: ff0000
