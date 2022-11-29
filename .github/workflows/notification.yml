@@ -179,9 +179,9 @@ jobs:
         uses: toko-bifrost/ms-teams-deploy-card@3.1.2
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Start"
-          notification-color: 28a745
+          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          #notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Start"
+          #notification-color: 28a745
 
   notify-team-success:
     needs: [deploy]
@@ -191,9 +191,9 @@ jobs:
         uses: toko-bifrost/ms-teams-deploy-card@3.1.2
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Success"
-          notification-color: 33ff66
+          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          #notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Success"
+          #notification-color: 33ff66
 
   notify-team-failure:
     if: failure()
@@ -204,6 +204,6 @@ jobs:
         uses: toko-bifrost/ms-teams-deploy-card@3.1.2
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Failure"
-          notification-color: ff0000
+          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          #notification-summary: "BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Failure"
+          #notification-color: ff0000
