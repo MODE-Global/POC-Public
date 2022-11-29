@@ -195,7 +195,7 @@ jobs:
 
   notify-team-failure:
     if: failure()
-    needs: [deploy]
+    #needs: [deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
