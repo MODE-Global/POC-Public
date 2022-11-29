@@ -172,15 +172,15 @@ jobs:
           for host in $APP_TARGET_HOST; do
             ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker system prune -a -f && docker volume prune -f && docker network prune -f"
           done
-  notify-team-start:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Team Notify Start
-        uses: toko-bifrost/ms-teams-deploy-card@3.1.2
-        with:
-          github-token: ${{ github.token }}
-          webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          timezone: US/Eastern
+#   notify-team-start:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Team Notify Start
+#         uses: toko-bifrost/ms-teams-deploy-card@3.1.2
+#         with:
+#           github-token: ${{ github.token }}
+#           webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+#           timezone: US/Eastern
 
   notify-team-success:
     needs: [deploy]
