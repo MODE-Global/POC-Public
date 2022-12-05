@@ -100,7 +100,7 @@ jobs:
         with:
           github-token: ${{ github.token }}
           webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          title: Hello world!
+          title: Started!
           message:  "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Started..."
           color: 28a745
 
@@ -117,15 +117,16 @@ jobs:
           message: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:"
           color: 33ff66
 
-#   notify-team-failure:
-#     if: failure()
-#     needs: [build]
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Team Notify of Failure
-#         uses: jdcargile/ms-teams-notification@v1.3
-#         with:
-#           github-token: ${{ github.token }}
-#           ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-#           notification-summary: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Failure :o:"
-#           notification-color: ff0000
+  notify-team-failure:
+    if: failure()
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Team Notify of Failure
+        uses: simbo/msteams-message-card-action@v1
+        with:
+          github-token: ${{ github.token }}
+          webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          title: Failure!
+          message: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Failure :o:"
+          color: ff0000
