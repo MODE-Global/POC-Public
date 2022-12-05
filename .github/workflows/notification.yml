@@ -99,7 +99,7 @@ jobs:
         uses: simbo/msteams-message-card-action@v1
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           message: Hello world!
 #           notification-summary:  "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Started..."
 #           notification-color: 28a745
