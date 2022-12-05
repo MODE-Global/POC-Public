@@ -96,26 +96,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify Start
-        uses: simbo/msteams-message-card-action@v1
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          title: Started!
-          message:  "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Started..."
-          color: 28a745
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URL }}
+          deploy-card: true
+          title: 'Deployment Started'
+          color: 'info'
+#         uses: simbo/msteams-message-card-action@v1
+#         with:
+#           github-token: ${{ github.token }}
+#           webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+#           title: Started!
+#           message:  "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Started..."
+#           color: 28a745
 
   notify-team-success:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Success
-        uses: simbo/msteams-message-card-action@v1
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }} 
-          title: Success!
-          message: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:"
-          color: 33ff66
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URL }}
+          deploy-card: true
+          title: 'Deployment Successful'
+          color: 'success'
+#         uses: simbo/msteams-message-card-action@v1
+#         with:
+#           github-token: ${{ github.token }}
+#           webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }} 
+#           title: Success!
+#           message: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:"
+#           color: 33ff66
 
   notify-team-failure:
     if: failure()
@@ -123,10 +137,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
-        uses: simbo/msteams-message-card-action@v1
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          title: Failure!
-          message: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Failure :o:"
-          color: ff0000
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URL }}
+          deploy-card: true
+          title: 'Deployment Failed'
+          color: 'failure'
+#         uses: simbo/msteams-message-card-action@v1
+#         with:
+#           github-token: ${{ github.token }}
+#           webhook: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+#           title: Failure!
+#           message: "BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Failure :o:"
+#           color: ff0000
