@@ -142,7 +142,7 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URL }}
           deploy-card: true
-          title: 'Deployment Failed'
+          title: 'BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Failure :o:'
           color: 'failure'
 #         uses: simbo/msteams-message-card-action@v1
 #         with:
