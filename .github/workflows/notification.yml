@@ -101,7 +101,7 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URL }}
           deploy-card: true
-          title: 'Deployment Started'
+          title: 'BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Started...'
           color: 'info'
 #         uses: simbo/msteams-message-card-action@v1
 #         with:
