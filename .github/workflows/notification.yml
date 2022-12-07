@@ -1,18 +1,15 @@
-name: Imaging Deploy
+name: Imaging Deploy Common (Beanstalk)
 
 on:
   workflow_call:
     inputs:
+      image_tag:
+        required: true
+        type: string
       ref:
         required: true
         type: string
-      app_env:
-        required: true
-        type: string
-      bastion:
-        required: true
-        type: string
-      target:
+      target_env:
         required: true
         type: string
     secrets:
@@ -20,36 +17,16 @@ on:
         required: true
       AWS_SECRET_ACCESS_KEY:
         required: true
-      DEPLOY_SSH_PRIVATE_KEY:
-        required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Git ref (branch, tag, sha) to deploy"
-        required: true
-        type: string
-      app_env:
-        description: "Application environment (qc, stage, prod)"
-        required: true
-        type: string
-      bastion:
-        description: "Bastion server address"
-        required: true
-        type: string
-      target:
-        description: "Target host address"
-        required: true
-        type: string
 
 jobs:
-  deploy:
+  beanstalk-deploy:
     runs-on: ubuntu-latest
     env:
-      BASTION_HOST: ${{ inputs.bastion }}
-      TARGET_HOST: ${{ inputs.target }}
-      APP_ENV: ${{ inputs.app_env }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      TARGET_ENV: ${{ inputs.target_env }}
+      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
     steps:
       - name: Team Notify Start
         uses: mikesprague/teams-incoming-webhook-action@v1
@@ -57,70 +34,84 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging Deployment to ${{ inputs.app_env }} Started.'
+          title: 'Imaging Beanstalk deployment to ${{ inputs.target_env }} Started.'
           color: 'info'
+
       - uses: actions/checkout@v2
         with:
           ref: ${{ inputs.ref }}
-      - name: Configure SSH
-        env:
-          SSH_USER: deploy
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh/
-          echo "$SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
-          ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${TARGET_HOST}\"" | tee -a ~/.ssh/known_hosts
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: Copy environment environment config from S3
-        run: |
-          aws s3 cp s3://sunteck-mono/etc/imaging.${APP_ENV}.env ./build/etc/
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-      - name: Configure host
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+
+      - name: Set environment config && Update Release Folder
         run: |
-          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "mkdir -p ~/docker";
-          scp -o "ProxyJump deploy@${BASTION_HOST}" ./build/etc/imaging.${APP_ENV}.env "deploy@${TARGET_HOST}:~/docker/imaging.${APP_ENV}.env"
-          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/nginx.conf "deploy@${TARGET_HOST}:~/docker/nginx.conf"
-          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/nginx-vhost.conf "deploy@${TARGET_HOST}:~/docker/nginx-vhost.conf"
-          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/newrelic.ini "deploy@${TARGET_HOST}:~/docker/newrelic.ini"
-          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/docker-compose.${APP_ENV}.yml "deploy@${TARGET_HOST}:~/docker/docker-compose.yml"
-      - name: Integrating with Systemd (Web Application)
+          cd ./imaging/provision-beanstalk
+
+          echo "IMAGE_TAG=${IMAGE_TAG}" > .env
+          echo "SERVER_ENV=${TARGET_ENV}" >> .env
+          echo "BRANCH=${BRANCH_NAME}" >> .env
+          echo "NEWBRANCH=${BRANCH_NAME}" >> .env
+          echo "HASH=${GITHUB_SHA}" >> .env
+
+          aws s3 cp s3://sunteck-mono/etc/imaging.datadog.env imaging.datadog.env
+          aws s3 cp s3://sunteck-mono/etc/imaging.${TARGET_ENV}.env imaging.env
+          cp ../provision/docker-compose-beanstalk.${TARGET_ENV}.yml docker-compose.yml
+          cp ../provision/nginx.conf nginx.conf
+          cp ../provision/nginx-vhost.conf nginx-vhost.conf
+
+          zip -r deploy.zip * .[^.]* -x "vendor/*"
+          mv deploy.zip ../
+
+      - name: Update file with branch & hash
+        id: set-version
         run: |
-          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/docker-imaging.service deploy@${TARGET_HOST}:/tmp/
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo install --owner=root --group=root --mode=0644 /tmp/docker-imaging.service /etc/systemd/system/"
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl enable docker-imaging.service"
-      - name: Update and restart imaging service
-        run: |
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml pull -q"
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml images"
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --workdir=/var/www/html/app/storage --rm app mkdir -p -m=777 meta views logs sessions cache"
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --workdir=/var/www/html/app/storage --rm app chmod 777 meta views logs sessions cache"
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl restart docker-imaging.service"
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --rm app php artisan migrate --force"
-      - name: Cleaning docker remnants on host
-        run: |
-          echo "Waiting for systemd to settle before pruning the system" && sleep 2
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker system prune --all --force"
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker volume prune --force"
-          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker network prune --force"
+          hash="$(git rev-parse --short "$GITHUB_SHA")"
+          echo ::set-output name=release_hash::$(echo $hash)
+
+      - name: Get timestamp
+        uses: gerred/actions/current-time@master
+        id: current-time
+
+      - name: Run string replace
+        uses: frabert/replace-string-action@master
+        id: format-time
+        with:
+          pattern: '[:\.]+'
+          string: "${{ steps.current-time.outputs.time }}"
+          replace-with: '-'
+          flags: 'g'
+
+      - name: Beanstalk Deploy for app
+        uses: einaregilsson/beanstalk-deploy@v20
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: Imaging
+          environment_name: imaging-${{ inputs.target_env }}
+          use_existing_version_if_available: true
+          region: us-east-1
+          version_label: "${{ steps.set-version.outputs.release_hash }}-${{ steps.format-time.outputs.replaced }}"
+          deployment_package: ./imaging/deploy.zip
+          wait_for_environment_recovery: 300
+
       - name: Team Notify of Success
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging Deployment to ${{ inputs.app_env }} Success.'
+          title: 'Imaging Beanstalk deployment to ${{ inputs.target_env }} Success.'
           color: 'success'
+
       - name: Team Notify of Failure
         if: ${{ failure() }}
         uses: mikesprague/teams-incoming-webhook-action@v1
@@ -128,5 +119,5 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging Deployment to ${{ inputs.app_env }} Failure.'
+          title: 'Imaging Beanstalk deployment to ${{ inputs.target_env }} Failure.'
           color: 'failure'
