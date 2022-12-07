@@ -1,78 +1,55 @@
-name: TMS Test
+name: TMS Deploy
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      app_env:
+        required: true
+        type: string
+      bastion:
+        required: true
+        type: string
+      target:
+        required: true
+        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
       AWS_SECRET_ACCESS_KEY:
         required: true
+      DEPLOY_SSH_PRIVATE_KEY:
+        required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
-  pull_request:
-    paths:
-      - '.github/workflows/tms-test.yml'
-      - 'tms_api/**'
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref'
+        description: "Git ref (branch, tag, sha) to deploy"
         required: true
-        default: 'develop'
+        type: string
+      app_env:
+        description: "Application environment (qc, stage, prod)"
+        required: true
+        type: string
+      bastion:
+        description: "Bastion server address"
+        required: true
+        type: string
+      target:
+        description: "Target host address"
+        required: true
+        type: string
 
 jobs:
-  static-analysis:
+  deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: 1.15
-      - name: Check Go code formatting
-        shell: sh
-        run: |
-          GO_FILES=$(find ./tms_api/ -name \*.go -not -path "./tms_api/vendor/*")
-          UNFORMATTED=$(gofmt -l $GO_FILES)
-          [ -z "$UNFORMATTED" ] && exit 0
-          for fn in $UNFORMATTED; do
-              echo "::error file=$fn,line=1::This file must be formatted with gofmt\n"
-          done
-          exit 1
-  test:
-    name: test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./tms_api
-    steps:
-      - uses: actions/checkout@v2
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-      - name: Copy db-setup.sql from S3
-        working-directory: ./
-        run: aws s3 cp s3://sunteck-mono/sql/db-setup.sql ./build/sql/
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-      - name: Setup test BTMS database
-        run: docker-compose -f docker-compose.test.yml run --rm migration ./bin/wait-for-it --timeout=120 db:3306 -- ./bin/phinx migrate
-      - name: Start test environment
-        run: docker-compose -f docker-compose.test.yml up -d webtest
-      - name: Run TMS migrations
-        run: |
-          docker-compose -f docker-compose.test.yml exec -T webtest go build -a -o ../bin/tms cmd/tms/*
-          docker-compose -f docker-compose.test.yml exec -T webtest tms migrate up
-      - name: Run tests
-        run: docker-compose -f docker-compose.test.yml exec -T webtest go test ./...
-
-  notify-team-start:
-    if: ${{ github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
+    env:
+      BASTION_HOST: ${{ inputs.bastion }}
+      TARGET_HOST: ${{ inputs.target }}
+      APP_ENV: ${{ inputs.app_env }}
     steps:
       - name: Team Notify Start
         uses: mikesprague/teams-incoming-webhook-action@v1
@@ -80,33 +57,67 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'TMS (${{ github.ref }}) QA/Tests: Started...'
+          title: 'TMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Started...'
           color: 'info'
-
-  notify-team-success:
-    if: ${{ github.event_name != 'pull_request' }}
-    needs: [static-analysis, test]
-    runs-on: ubuntu-latest
-    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Configure SSH
+        env:
+          SSH_USER: deploy
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
+          ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${TARGET_HOST}\"" | tee -a ~/.ssh/known_hosts
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Copy environment environment config from S3
+        run: |
+          aws s3 cp s3://sunteck-mono/etc/tms.${APP_ENV}.env ./build/etc/
+      - name: Configure host
+        run: |
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "mkdir -p ~/docker";
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./build/etc/tms.${APP_ENV}.env "deploy@${TARGET_HOST}:~/docker/tms.${APP_ENV}.env"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./tms_api/provision/nginx.conf "deploy@${TARGET_HOST}:~/docker/nginx.conf"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./tms_api/provision/nginx-vhost.conf "deploy@${TARGET_HOST}:~/docker/nginx-vhost.conf"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./tms_api/provision/docker-compose.${APP_ENV}.yml "deploy@${TARGET_HOST}:~/docker/docker-compose.yml"
+      - name: Integrating with Systemd (Web Application)
+        run: |
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./tms_api/provision/docker-tms.service deploy@${TARGET_HOST}:/tmp/
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo install --owner=root --group=root --mode=0644 /tmp/docker-tms.service /etc/systemd/system/"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl enable docker-tms.service"
+      - name: Update and restart TMS service
+        run: |
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml pull -q"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl restart docker-tms.service"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --rm app tms migrate up"
+      - name: Cleaning docker remnants on host
+        run: |
+          echo "Waiting for systemd to settle before pruning the system" && sleep 2
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker system prune --all --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker volume prune --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker network prune --force"
       - name: Team Notify of Success
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'TMS (${{ github.ref }}) QA/Tests: Success :white_check_mark:'
+          title: 'TMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Success :white_check_mark:'
           color: 'success'
-
-  notify-team-failure:
-    if: ${{ failure() && github.event_name != 'pull_request' }}
-    needs: [static-analysis, test]
-    runs-on: ubuntu-latest
-    steps:
       - name: Team Notify of Failure
+        if: ${{ failure() }}
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'TMS (${{ github.ref }}) QA/Tests: Failure :o:'
+          title: 'TMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Failure :o:'
           color: 'failure'
