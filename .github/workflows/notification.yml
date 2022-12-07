@@ -1,199 +1,134 @@
-name: Database Sync - Tuesday
+name: Carrier Portal Deploy
 
 on:
-  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
-  # schedule:
-  #   - cron: '0 5 * * 2'
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      app_env:
+        required: true
+        type: string
+      bastion:
+        required: true
+        type: string
+      target:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      DEPLOY_SSH_PRIVATE_KEY:
+        required: true
+      MS_TEAMS_WEBHOOK_URI:
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag, sha) to deploy"
+        required: true
+        type: string
+      app_env:
+        description: "Application environment (qc, stage, prod)"
+        required: true
+        type: string
+      bastion:
+        description: "Bastion server address"
+        required: true
+        type: string
+      target:
+        description: "Target host address"
+        required: true
+        type: string
 
 jobs:
-#   qc-btms:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Install SSH key
-#         uses: shimataro/ssh-key-action@v2
-#         with:
-#           key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-#           known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
-#           if_key_exists: replace
-
-#       - name: Configure AWS credentials
-#         uses: Fooji/create-aws-profile-action@v1
-#         with:
-#           profile: sunteck
-#           region: us-east-1
-#           key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#       - uses: actions/checkout@v3
-#       - uses: actions/setup-python@v4
-#         with:
-#           python-version: '3.10'
-
-#       - name: Bootstrap
-#         working-directory: ./_devops/db_sync
-#         run: make bootstrap files
-
-#       - name: qc-btms
-#         working-directory: ./_devops/db_sync
-#         run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
-         
-#       - name: Team Notify of Success
-#         uses: mikesprague/teams-incoming-webhook-action@v1
-#         with:
-#           github-token: ${{ github.token }}
-#           webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-#           deploy-card: true
-#           title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success'
-#           color: 'success'
-#       - name: Team Notify of Failure
-#         if: ${{ failure() }}
-#         uses: mikesprague/teams-incoming-webhook-action@v1
-#         with:
-#           github-token: ${{ github.token }}
-#           webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-#           deploy-card: true
-#           title: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:"
-#           color: 'failure'
-
-#   qc-btms-history:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Install SSH key
-#         uses: shimataro/ssh-key-action@v2
-#         with:
-#           key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-#           known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
-#           if_key_exists: replace
-
-#       - name: Configure AWS credentials
-#         uses: Fooji/create-aws-profile-action@v1
-#         with:
-#           profile: sunteck
-#           region: us-east-1
-#           key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#       - uses: actions/checkout@v3
-#       - uses: actions/setup-python@v4
-#         with:
-#           python-version: '3.10'
-
-#       - name: Bootstrap
-#         working-directory: ./_devops/db_sync
-#         run: make bootstrap files
-
-#       - name: qc-btms-history
-#         working-directory: ./_devops/db_sync
-#         run: ./sync_rds.py --skip-ask --env_target qc --app_name btms-history
-
-#       - name: Team Notify of Success
-#         uses: mikesprague/teams-incoming-webhook-action@v1
-#         with:
-#           github-token: ${{ github.token }}
-#           webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-#           deploy-card: true
-#           title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success'
-#           color: 'success'
-#       - name: Team Notify of Failure
-#         if: ${{ failure() }}
-#         uses: mikesprague/teams-incoming-webhook-action@v1
-#         with:
-#           github-token: ${{ github.token }}
-#           webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-#           deploy-card: true
-#           title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:'
-#           color: 'failure'
-
-  qc-imaging:
+  deploy:
     runs-on: ubuntu-latest
+    env:
+      BASTION_HOST: ${{ inputs.bastion }}
+      TARGET_HOST: ${{ inputs.target }}
+      APP_ENV: ${{ inputs.app_env }}
     steps:
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
+      - name: Team Notify Start
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
-          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
-          if_key_exists: replace
-
+          github-token: ${{ github.token }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'Carrier Portal deployment to ${{ inputs.app_env }} (${{ github.actor }}): Started...'
+          color: 'info'
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Configure SSH
+        env:
+          SSH_USER: deploy
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
+          ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${TARGET_HOST}\"" | tee -a ~/.ssh/known_hosts
       - name: Configure AWS credentials
-        uses: Fooji/create-aws-profile-action@v1
+        uses: aws-actions/configure-aws-credentials@v1
         with:
-          profile: sunteck
-          region: us-east-1
-          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Bootstrap
-        working-directory: ./_devops/db_sync
-        run: make bootstrap files
-
-      - name: qc-imaging
-        working-directory: ./_devops/db_sync
-        run: ./sync_rds.py --skip-ask --env_target qc --app_name imaging
-  
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Copy environment environment config from S3
+        run: aws s3 cp s3://sunteck-mono/etc/carriers.${APP_ENV}.env ./build/etc/
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Login to Amazon ECR on Remote (OK to fail)
+        # This step fails on newer servers because we are using the ecr credential helper
+        # See https://github.com/awslabs/amazon-ecr-credential-helper
+        # Because of this we set this step ok to continue on error
+        # This step is only needed for old servers will be removed once we have converted all servers to amazon-ecr-credential-helper
+        continue-on-error: true
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          DOCKER_PW="$( aws ecr get-login-password --region us-east-1 )"
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "docker login -u AWS -p ${DOCKER_PW} ${ECR_REGISTRY}"
+      - name: Configure host
+        run: |
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "mkdir -p ~/docker";
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./build/etc/carriers.${APP_ENV}.env "deploy@${TARGET_HOST}:~/docker/carriers.${APP_ENV}.env"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./carriers/provision/docker-compose.${APP_ENV}.yml "deploy@${TARGET_HOST}:~/docker/docker-compose.yml"
+      - name: Integrating with Systemd (Web Application)
+        run: |
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./carriers/provision/docker-carriers.service deploy@${TARGET_HOST}:/tmp/
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo install --owner=root --group=root --mode=0644 /tmp/docker-carriers.service /etc/systemd/system/"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl enable docker-carriers.service"
+      - name: Update and restart carriers service
+        run: |
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml pull -q"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl restart docker-carriers.service"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --rm carriers-php ./bin/console doctrine:migrations:migrate --no-interaction"
+      - name: Cleaning docker remnants on host
+        run: |
+          echo "Waiting for systemd to settle before pruning the system" && sleep 2
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker system prune --all --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker volume prune --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker network prune --force"
       - name: Team Notify of Success
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success'
+          title: 'Carrier Portal deployment to ${{ inputs.app_env }} (${{ github.actor }}): Success :white_check_mark:'
           color: 'success'
       - name: Team Notify of Failure
         if: ${{ failure() }}
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:'
-          color: 'failure'
-
-  qc-tms:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
-          if_key_exists: replace
-
-      - name: Configure AWS credentials
-        uses: Fooji/create-aws-profile-action@v1
-        with:
-          profile: sunteck
-          region: us-east-1
-          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Bootstrap
-        working-directory: ./_devops/db_sync
-        run: make bootstrap files
-
-      - name: qc-tms
-        working-directory: ./_devops/db_sync
-        run: ./sync_rds.py --skip-ask --env_target qc --app_name tms
-
-      - name: Team Notify of Success
-        uses: mikesprague/teams-incoming-webhook-action@v1
-        with:
-          github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-          deploy-card: true
-          title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success'
-          color: 'success'
-      - name: Team Notify of Failure
-        if: ${{ failure() }}
-        uses: mikesprague/teams-incoming-webhook-action@v1
-        with:
-          github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-          deploy-card: true
-          title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:'
+          title: 'Carrier Portal deployment to ${{ inputs.app_env }} (${{ github.actor }}): Failure :o:'
           color: 'failure'
