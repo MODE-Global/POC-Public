@@ -1,4 +1,4 @@
-name: BTMS Deploy Widgets Common
+name: BTMS Deploy Cron Common
 
 on:
   workflow_call:
@@ -9,10 +9,18 @@ on:
       app_env:
         required: true
         type: string
+      bastion:
+        required: true
+        type: string
+      cron_target:
+        required: true
+        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
       AWS_SECRET_ACCESS_KEY:
+        required: true
+      DEPLOY_SSH_PRIVATE_KEY:
         required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
@@ -26,22 +34,27 @@ on:
         description: "Application environment (qc, stage, production)"
         required: true
         type: string
+      bastion:
+        description: "Bastion server address"
+        required: true
+        type: string
+      cron_target:
+        description: "Target cron host addresses"
+        required: true
+        type: string
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
+      BASTION_HOST: ${{ inputs.bastion }}
+      CRON_TARGET_HOST: ${{ inputs.cron_target }}
       APP_ENV: ${{ inputs.app_env }}
-      NODE_VERSION: 14
+      IMAGE_TAG: ${{ inputs.ref }}
     steps:
       - uses: actions/checkout@v3
         with:
           ref: ${{ inputs.ref }}
-
-      - name: Use Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.NODE_VERSION }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -50,14 +63,142 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Build and deploy widgets
+      - name: Configure SSH
         env:
-          CI: false
+          SSH_USER: deploy
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
         run: |
-          cd btms/widgets/
-          npm install --no-bin-links
-          npm run build:${{ env.APP_ENV }}
-          aws s3 cp ./build/fats/assets/widgets s3://sunteck-assets/btms/${{ env.APP_ENV }}/widgets/ --recursive --acl public-read --cache-control "max-age=0,no-cache,no-store,must-revalidate"
+          echo "Setup Github Action Host"
+          mkdir -p ~/.ssh/ && echo "$SSH_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
+
+          for host in $CRON_TARGET_HOST; do
+            echo "Running: ssh deploy@${BASTION_HOST} \"ssh-keyscan -H \"${host}\"\" | tee -a ~/.ssh/known_hosts\"\""
+            ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${host}\"" | tee -a ~/.ssh/known_hosts
+          done
+
+      - name: Copy environment environment config from S3
+        run: |
+          aws s3 cp s3://sunteck-mono/etc/btms.datadog.env ./build/etc/
+          aws s3 cp s3://sunteck-mono/etc/btms.${APP_ENV}.env ./build/etc/
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: ~ Stop all Docker Containers and Prune Docker with up to 5 Retry ~
+        run: |
+          for host in $CRON_TARGET_HOST; do
+            echo "#### Processing Host ${host} ####"
+            set +e
+            for (( c=1; c<=5; c++ )); do
+              CONTAINER_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps -a | grep btms | wc -l" 2>&1)
+              if ! [[ $CONTAINER_COUNT =~ ^-?[0-9]+$ ]]; then
+                echo "#### $(date) ERROR. $CONTAINER_COUNT Sleep 5 and Update CONTAINER_COUNT to Defaults." && sleep 5 && CONTAINER_COUNT=999
+              fi
+              DOCKER_IMAGES_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker images | grep btms | wc -l"  2>&1)
+              if ! [[ $DOCKER_IMAGES_COUNT =~ ^-?[0-9]+$ ]]; then
+                echo "#### $(date) ERROR. $DOCKER_IMAGES_COUNT Sleep 5 and Update DOCKER_IMAGES_COUNT to Defaults." && sleep 5 && DOCKER_IMAGES_COUNT=999
+              fi
+
+              echo "#### $(date) Before Prune. Image Count: $DOCKER_IMAGES_COUNT. Running Container Count: $CONTAINER_COUNT. Attempt $c"
+
+              ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "sudo systemctl stop docker-btms.service || true && docker-compose -f docker/docker-compose.yml down || true && docker system prune -a -f && docker volume prune -f && docker network prune -f"
+              CONTAINER_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps -a | grep btms | wc -l" 2>&1)
+              if ! [[ $CONTAINER_COUNT =~ ^-?[0-9]+$ ]]; then
+                echo "#### $(date) ERROR. $CONTAINER_COUNT Sleep 5 and Update CONTAINER_COUNT to Defaults." && sleep 5 && CONTAINER_COUNT=999
+              fi
+              DOCKER_IMAGES_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker images | grep btms | wc -l"  2>&1)
+              if ! [[ $DOCKER_IMAGES_COUNT =~ ^-?[0-9]+$ ]]; then
+                echo "#### $(date) ERROR. $DOCKER_IMAGES_COUNT Sleep 5 and Update DOCKER_IMAGES_COUNT to Defaults." && sleep 5 && DOCKER_IMAGES_COUNT=999
+              fi
+
+              if [ "$CONTAINER_COUNT" -eq 0 ]; then
+                echo "#### $(date) System Cleanup SUCCESS. Image Count: $DOCKER_IMAGES_COUNT. Running Docker Count: $CONTAINER_COUNT. Attempt $c"
+                break
+              else
+                echo "#### $(date) System Cleanup FAILED. Image Count: $DOCKER_IMAGES_COUNT. Running Docker Count: $CONTAINER_COUNT. Attempt $c"
+                if [ $c == 5 ]; then
+                  exit 1
+                fi
+              fi
+            done
+            set -e
+          done
+
+      - name: ~ Pull docker images to cron hosts ~
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          echo "$( aws ecr get-login-password --region us-east-1 )" > DOCKER_PW
+          echo "cat ~/docker/DOCKER_PW | docker login -u AWS --password-stdin $ECR_REGISTRY" > DOCKER_LOGIN
+
+          echo "#### Setup and Pull Docker Images on Cron Servers ####"
+          cp ./btms/provision/docker-compose.${APP_ENV}.cron.daemon.yml ./btms/provision/docker-compose.yml
+          cp ./btms/provision/docker-compose.${APP_ENV}.cron.ofelia.yml ./btms/provision/docker-compose.cron.yml
+          cp ./btms/provision/docker-btms-cron.service                  ./btms/provision/docker-btms.service
+          sed -i -e 's|btmsofeliacron|btms-ofelia-eastern-cron btms-ofelia-utc-cron|' ./btms/provision/docker-btms.service
+
+          for host in $CRON_TARGET_HOST; do
+            rsync -azq -e 'ssh -o StrictHostKeyChecking=no -A -J deploy@${BASTION_HOST}' DOCKER_PW DOCKER_LOGIN ./build/etc/btms.datadog.env ./build/etc/btms.${APP_ENV}.env ./btms/provision/docker-compose.yml ./btms/provision/docker-compose.cron.yml ./btms/provision/docker-btms.service deploy@${host}:~/docker
+            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "rm -f ~/.docker/config.json && /bin/bash ~/docker/DOCKER_LOGIN && docker-compose -f docker/docker-compose.yml pull -q && rm -f  ~/docker/DOCKER_LOGIN ~/docker/DOCKER_PW"
+            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "sudo install --owner=root --group=root --mode=0644 ~/docker/docker-btms.service /etc/systemd/system/"
+            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "sudo systemctl enable docker-btms.service"
+
+            echo "#### Pull Images for Cron Host ${host} ####"
+            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "docker-compose -f ~/docker/docker-compose.yml pull -q && docker-compose -f docker/docker-compose.yml images"
+            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "docker-compose -f ~/docker/docker-compose.cron.yml -p btmscron pull -q"
+          done
+
+      - name: ~ Provision Containers with up to 3 Retry (create some; not start) ~
+        run: |
+          for host in $CRON_TARGET_HOST; do
+            for (( c=1; c<=5; c++ )); do
+              echo "Running: ssh -J deploy@${BASTION_HOST} \"deploy@${host}\" \"sudo systemctl start docker-btms.service\""
+              ssh -J deploy@${BASTION_HOST} "deploy@${host}" "sudo systemctl start docker-btms.service"
+
+              target_sleep=$((5+$c*5))
+              echo "#### $(date) sleep $target_sleep ####"
+              sleep $target_sleep
+
+              CONTAINER_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps -a | grep btms | wc -l")
+              DOCKER_IMAGES_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker images | grep btms | wc -l")
+              if [ "$CONTAINER_COUNT" -gt 0 ]; then
+                echo "#### $(date) Startup SUCCESS. Image Count: $DOCKER_IMAGES_COUNT. Running Docker Count: $CONTAINER_COUNT. Attempt $c"
+                break
+              else
+                echo "#### $(date) Startup FAILED. Image Count: $DOCKER_IMAGES_COUNT. Running Docker Count: $CONTAINER_COUNT. Attempt $c"
+                if [ $c == 3 ]; then
+                  exit 1
+                fi
+              fi
+            done
+          done
+
+  notify-team-start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Team Notify Start
+        uses: mikesprague/teams-incoming-webhook-action@v1
+        with:
+          github-token: ${{ github.token }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: "BTMS Deploy ${{ inputs.app_env }} Cron EC2 ${{ inputs.ref }} Start"
+          color: 'info'
+
+  notify-team-success:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Team Notify of Success
+        uses: mikesprague/teams-incoming-webhook-action@v1
+        with:
+          github-token: ${{ github.token }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'BTMS Deploy ${{ inputs.app_env }} Cron EC2 ${{ inputs.ref }} Success'
+          color: 'success'
 
   notify-team-failure:
     if: failure()
@@ -70,5 +211,5 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'BTMS Deploy ${{ inputs.app_env }} Widgets ${{ inputs.ref }} Failure (ONLY Failure are Notified)'
+          title: 'BTMS Deploy ${{ inputs.app_env }} Cron EC2 ${{ inputs.ref }} Failure'
           color: 'failure'
