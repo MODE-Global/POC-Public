@@ -1,142 +1,132 @@
-name: Imaging Test
+name: Imaging Deploy
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      app_env:
+        required: true
+        type: string
+      bastion:
+        required: true
+        type: string
+      target:
+        required: true
+        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
       AWS_SECRET_ACCESS_KEY:
         required: true
+      DEPLOY_SSH_PRIVATE_KEY:
+        required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
-  pull_request:
-    paths:
-      - '.github/workflows/imaging-test.yml'
-      - 'imaging/**'
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref'
+        description: "Git ref (branch, tag, sha) to deploy"
         required: true
-        default: 'develop'
+        type: string
+      app_env:
+        description: "Application environment (qc, stage, prod)"
+        required: true
+        type: string
+      bastion:
+        description: "Bastion server address"
+        required: true
+        type: string
+      target:
+        description: "Target host address"
+        required: true
+        type: string
 
 jobs:
-  lint:
+  deploy:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        php: [ 7.4, 8.0 ]
+    env:
+      BASTION_HOST: ${{ inputs.bastion }}
+      TARGET_HOST: ${{ inputs.target }}
+      APP_ENV: ${{ inputs.app_env }}
     steps:
-      - uses: actions/checkout@v2
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - name: Team Notify Start
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
-          php-version: ${{ matrix.php }}
-          coverage: none
-          tools: parallel-lint, cs2pr
-      - name: Lint PHP code
-        run: parallel-lint --checkstyle ./imaging | cs2pr
-  static-analysis:
-    runs-on: ubuntu-latest
-    steps:
+          github-token: ${{ github.token }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'Imaging Deployment to ${{ inputs.app_env }} Started.'
+          color: 'info'
       - uses: actions/checkout@v2
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
         with:
-          php-version: 7.2
-          tools: parallel-lint, cs2pr, composer:v1
-      - name: Lint PHP code
-        run: parallel-lint --checkstyle ./imaging | cs2pr
-      - name: Get composer cache directory
-        id: composer-cache
-        working-directory: ./imaging
-        run: echo "::set-output name=dir::$(composer config cache-files-dir)"
-      - name: Cache dependencies
-        uses: actions/cache@v2
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
-      - name: Install dependencies
-        working-directory: ./imaging
-        run: composer install --prefer-dist --no-scripts
-      - name: Detect coding standard violations
-        continue-on-error: true
-        run: ./imaging/vendor/bin/phpcs --standard=./imaging/phpcs.xml.dist -p --basepath=. --report-full --report-checkstyle=./phpcs-report.xml
-      - name: Show PHPCS results in PR
-        run: cs2pr --graceful-warnings ./phpcs-report.xml
-  test:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./imaging
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+          ref: ${{ inputs.ref }}
+      - name: Configure SSH
+        env:
+          SSH_USER: deploy
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
+          ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${TARGET_HOST}\"" | tee -a ~/.ssh/known_hosts
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: Copy dependencies from S3
+      - name: Copy environment environment config from S3
         run: |
-          aws s3 cp s3://sunteck-mono/libs/php_pdflib-9.1.2-php7.2-nts.so build/php_pdflib-9.1.2-php7.2-nts.so
-          aws s3 cp s3://sunteck-mono/etc/imaging.testing.env ../build/etc/
-      - name: Build and cache test image
-        uses: docker/build-push-action@v2
-        with:
-          context: ./imaging
-          target: appdev
-          push: false
-          load: true
-          tags: sunteck/imaging:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Run tests
+          aws s3 cp s3://sunteck-mono/etc/imaging.${APP_ENV}.env ./build/etc/
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Configure host
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker-compose -f provision/docker-compose.ci.yml run --rm phptest ./provision/wait-for-it.sh -t 15 mysqltest:3306
-          docker-compose -f provision/docker-compose.ci.yml run --rm phptest php artisan migrate --seed
-          docker-compose -f provision/docker-compose.ci.yml run --rm phptest ./vendor/phpunit/phpunit/phpunit
-
-  notify-teams-start:
-    if: ${{ github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Teams of Start
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "mkdir -p ~/docker";
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./build/etc/imaging.${APP_ENV}.env "deploy@${TARGET_HOST}:~/docker/imaging.${APP_ENV}.env"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/nginx.conf "deploy@${TARGET_HOST}:~/docker/nginx.conf"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/nginx-vhost.conf "deploy@${TARGET_HOST}:~/docker/nginx-vhost.conf"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/newrelic.ini "deploy@${TARGET_HOST}:~/docker/newrelic.ini"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/docker-compose.${APP_ENV}.yml "deploy@${TARGET_HOST}:~/docker/docker-compose.yml"
+      - name: Integrating with Systemd (Web Application)
+        run: |
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./imaging/provision/docker-imaging.service deploy@${TARGET_HOST}:/tmp/
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo install --owner=root --group=root --mode=0644 /tmp/docker-imaging.service /etc/systemd/system/"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl enable docker-imaging.service"
+      - name: Update and restart imaging service
+        run: |
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml pull -q"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml images"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --workdir=/var/www/html/app/storage --rm app mkdir -p -m=777 meta views logs sessions cache"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --workdir=/var/www/html/app/storage --rm app chmod 777 meta views logs sessions cache"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl restart docker-imaging.service"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --rm app php artisan migrate --force"
+      - name: Cleaning docker remnants on host
+        run: |
+          echo "Waiting for systemd to settle before pruning the system" && sleep 2
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker system prune --all --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker volume prune --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker network prune --force"
+      - name: Team Notify of Success
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging (${{ github.ref }}) QA/Tests Started.'
-          color: 'info'
-
-  notify-teams-success:
-    if: ${{ github.event_name != 'pull_request' }}
-    needs: [static-analysis, test]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Teams of Success
-        uses: mikesprague/teams-incoming-webhook-action@v1
-        with:
-          github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          deploy-card: true
-          title: 'Imaging (${{ github.ref }}) QA/Tests Success.'
+          title: 'Imaging Deployment to ${{ inputs.app_env }} Success.'
           color: 'success'
-
-  notify-teams-failure:
-    if: ${{ failure() && github.event_name != 'pull_request' }}
-    needs: [static-analysis, test]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Teams of Failure
+      - name: Team Notify of Failure
+        if: ${{ failure() }}
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging (${{ github.ref }}) QA/Tests Failure.'
+          title: 'Imaging Deployment to ${{ inputs.app_env }} Failure.'
           color: 'failure'
