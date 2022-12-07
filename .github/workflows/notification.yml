@@ -1,11 +1,7 @@
-name: Tracking Portal Build
+name: TMS Test
 
 on:
   workflow_call:
-    inputs:
-      ref:
-        required: true
-        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -13,58 +9,69 @@ on:
         required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
+  pull_request:
+    paths:
+      - '.github/workflows/tms-test.yml'
+      - 'tms_api/**'
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref (branch, tag, sha) to build"
+        description: 'Git ref'
         required: true
-        type: string
+        default: 'develop'
 
 jobs:
-  build:
+  static-analysis:
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 1 # Run sequentially to take advantage of image layer caching
-      matrix:
-        include:
-          - repo: sunteck/tracking
-            target: app
-          - repo: sunteck/tracking-proxy
-            target: web
-    env:
-      GIT_REF: ${{ inputs.ref }}
-      IMAGE_TAG: ${{ inputs.ref }}
     steps:
       - uses: actions/checkout@v2
+      - name: Set up Go
+        uses: actions/setup-go@v2
         with:
-          ref: ${{ inputs.ref }}
-
+          go-version: 1.15
+      - name: Check Go code formatting
+        shell: sh
+        run: |
+          GO_FILES=$(find ./tms_api/ -name \*.go -not -path "./tms_api/vendor/*")
+          UNFORMATTED=$(gofmt -l $GO_FILES)
+          [ -z "$UNFORMATTED" ] && exit 0
+          for fn in $UNFORMATTED; do
+              echo "::error file=$fn,line=1::This file must be formatted with gofmt\n"
+          done
+          exit 1
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./tms_api
+    steps:
+      - uses: actions/checkout@v2
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-
+      - name: Copy db-setup.sql from S3
+        working-directory: ./
+        run: aws s3 cp s3://sunteck-mono/sql/db-setup.sql ./build/sql/
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Build and push image
-        uses: docker/build-push-action@v2
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ matrix.repo }}
-          TARGET: ${{ matrix.target }}
-        with:
-          context: tracking/
-          target: ${{ env.TARGET }}
-          push: true
-          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
-          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
-          cache-to: type=inline
+      - name: Setup test BTMS database
+        run: docker-compose -f docker-compose.test.yml run --rm migration ./bin/wait-for-it --timeout=120 db:3306 -- ./bin/phinx migrate
+      - name: Start test environment
+        run: docker-compose -f docker-compose.test.yml up -d webtest
+      - name: Run TMS migrations
+        run: |
+          docker-compose -f docker-compose.test.yml exec -T webtest go build -a -o ../bin/tms cmd/tms/*
+          docker-compose -f docker-compose.test.yml exec -T webtest tms migrate up
+      - name: Run tests
+        run: docker-compose -f docker-compose.test.yml exec -T webtest go test ./...
 
   notify-team-start:
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify Start
@@ -73,11 +80,12 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Tracking Portal ${{ inputs.ref }} build (${{ github.actor }}): Started...'
+          title: 'TMS (${{ github.ref }}) QA/Tests: Started...'
           color: 'info'
 
   notify-team-success:
-    needs: [build]
+    if: ${{ github.event_name != 'pull_request' }}
+    needs: [static-analysis, test]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Success
@@ -86,12 +94,12 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Tracking Portal ${{ inputs.ref }} build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:'
+          title: 'TMS (${{ github.ref }}) QA/Tests: Success :white_check_mark:'
           color: 'success'
 
   notify-team-failure:
-    if: failure()
-    needs: [build]
+    if: ${{ failure() && github.event_name != 'pull_request' }}
+    needs: [static-analysis, test]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
@@ -100,5 +108,5 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Tracking Portal ${{ inputs.ref }} build (${{ github.actor }}): Failure :o:'
+          title: 'TMS (${{ github.ref }}) QA/Tests: Failure :o:'
           color: 'failure'
