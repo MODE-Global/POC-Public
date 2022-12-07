@@ -1,15 +1,9 @@
-name: Imaging Deploy Common (Beanstalk)
+name: Imaging Build
 
 on:
   workflow_call:
     inputs:
-      image_tag:
-        required: true
-        type: string
       ref:
-        required: true
-        type: string
-      target_env:
         required: true
         type: string
     secrets:
@@ -19,24 +13,20 @@ on:
         required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag, sha) to build"
+        required: true
+        type: string
 
 jobs:
-  beanstalk-deploy:
+  build:
     runs-on: ubuntu-latest
     env:
-      IMAGE_TAG: ${{ inputs.image_tag }}
-      TARGET_ENV: ${{ inputs.target_env }}
-      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      GIT_REF: ${{ inputs.ref }}
+      IMAGE_TAG: ${{ inputs.ref }}
     steps:
-      - name: Team Notify Start
-        uses: mikesprague/teams-incoming-webhook-action@v1
-        with:
-          github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          deploy-card: true
-          title: 'Imaging Beanstalk deployment to ${{ inputs.target_env }} Started.'
-          color: 'info'
-
       - uses: actions/checkout@v2
         with:
           ref: ${{ inputs.ref }}
@@ -48,76 +38,62 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Copy build dependencies from S3
+        working-directory: ./imaging
+        run: |
+          aws s3 cp s3://sunteck-mono/libs/php_pdflib-9.1.2-php7.2-nts.so build/php_pdflib-9.1.2-php7.2-nts.so
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Set environment config && Update Release Folder
-        run: |
-          cd ./imaging/provision-beanstalk
-
-          echo "IMAGE_TAG=${IMAGE_TAG}" > .env
-          echo "SERVER_ENV=${TARGET_ENV}" >> .env
-          echo "BRANCH=${BRANCH_NAME}" >> .env
-          echo "NEWBRANCH=${BRANCH_NAME}" >> .env
-          echo "HASH=${GITHUB_SHA}" >> .env
-
-          aws s3 cp s3://sunteck-mono/etc/imaging.datadog.env imaging.datadog.env
-          aws s3 cp s3://sunteck-mono/etc/imaging.${TARGET_ENV}.env imaging.env
-          cp ../provision/docker-compose-beanstalk.${TARGET_ENV}.yml docker-compose.yml
-          cp ../provision/nginx.conf nginx.conf
-          cp ../provision/nginx-vhost.conf nginx-vhost.conf
-
-          zip -r deploy.zip * .[^.]* -x "vendor/*"
-          mv deploy.zip ../
-
-      - name: Update file with branch & hash
-        id: set-version
-        run: |
-          hash="$(git rev-parse --short "$GITHUB_SHA")"
-          echo ::set-output name=release_hash::$(echo $hash)
-
-      - name: Get timestamp
-        uses: gerred/actions/current-time@master
-        id: current-time
-
-      - name: Run string replace
-        uses: frabert/replace-string-action@master
-        id: format-time
+      - name: Build and push app image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/imaging
         with:
-          pattern: '[:\.]+'
-          string: "${{ steps.current-time.outputs.time }}"
-          replace-with: '-'
-          flags: 'g'
+          context: imaging/
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
 
-      - name: Beanstalk Deploy for app
-        uses: einaregilsson/beanstalk-deploy@v20
-        with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: Imaging
-          environment_name: imaging-${{ inputs.target_env }}
-          use_existing_version_if_available: true
-          region: us-east-1
-          version_label: "${{ steps.set-version.outputs.release_hash }}-${{ steps.format-time.outputs.replaced }}"
-          deployment_package: ./imaging/deploy.zip
-          wait_for_environment_recovery: 300
-
-      - name: Team Notify of Success
+  notify-teams-start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Teams of Start
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging Beanstalk deployment to ${{ inputs.target_env }} Success.'
+          title: 'Imaging `${{ inputs.ref }}` Build Started.'
+          color: 'info'
+
+  notify-teams-success:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Teams of Success
+        uses: mikesprague/teams-incoming-webhook-action@v1
+        with:
+          github-token: ${{ github.token }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'Imaging `${{ inputs.ref }}` Build Completed Successfully. Image was pushed to ECR and is available to be deployed.'
           color: 'success'
 
-      - name: Team Notify of Failure
-        if: ${{ failure() }}
+  notify-teams-failure:
+    if: failure()
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Teams of Failure
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging Beanstalk deployment to ${{ inputs.target_env }} Failure.'
+          title: 'Imaging `${{ inputs.ref }}` Build Failure.'
           color: 'failure'
