@@ -1,99 +1,199 @@
-name: Imaging Build
+name: Database Sync - Tuesday
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        required: true
-        type: string
-    secrets:
-      AWS_ACCESS_KEY_ID:
-        required: true
-      AWS_SECRET_ACCESS_KEY:
-        required: true
-      MS_TEAMS_WEBHOOK_URI:
-        required: true
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Git ref (branch, tag, sha) to build"
-        required: true
-        type: string
+  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
+  # schedule:
+  #   - cron: '0 5 * * 2'
 
 jobs:
-  build:
+  qc-btms:
     runs-on: ubuntu-latest
-    env:
-      GIT_REF: ${{ inputs.ref }}
-      IMAGE_TAG: ${{ inputs.ref }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
         with:
-          ref: ${{ inputs.ref }}
+          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
+          if_key_exists: replace
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: Fooji/create-aws-profile-action@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Copy build dependencies from S3
-        working-directory: ./imaging
-        run: |
-          aws s3 cp s3://sunteck-mono/libs/php_pdflib-9.1.2-php7.2-nts.so build/php_pdflib-9.1.2-php7.2-nts.so
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Build and push app image
-        uses: docker/build-push-action@v2
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: sunteck/imaging
+          profile: sunteck
+          region: us-east-1
+          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
-          context: imaging/
-          push: true
-          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
-          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
-          cache-to: type=inline
+          python-version: '3.10'
 
-  notify-teams-start:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Teams of Start
+      - name: Bootstrap
+        working-directory: ./_devops/db_sync
+        run: make bootstrap files
+
+      - name: qc-btms
+        working-directory: ./_devops/db_sync
+        run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
+         
+      - name: Team Notify of Success
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging `${{ inputs.ref }}` Build Started.'
-          color: 'info'
-
-  notify-teams-success:
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Teams of Success
-        uses: mikesprague/teams-incoming-webhook-action@v1
-        with:
-          github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          deploy-card: true
-          title: 'Imaging `${{ inputs.ref }}` Build Completed Successfully. Image was pushed to ECR and is available to be deployed.'
+          title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success'
           color: 'success'
-
-  notify-teams-failure:
-    if: failure()
-    needs: [build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Teams of Failure
+      - name: Team Notify of Failure
+        if: ${{ failure() }}
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Imaging `${{ inputs.ref }}` Build Failure.'
+          title: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:"
           color: 'failure'
+
+  qc-btms-history:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
+          if_key_exists: replace
+
+      - name: Configure AWS credentials
+        uses: Fooji/create-aws-profile-action@v1
+        with:
+          profile: sunteck
+          region: us-east-1
+          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Bootstrap
+        working-directory: ./_devops/db_sync
+        run: make bootstrap files
+
+      - name: qc-btms-history
+        working-directory: ./_devops/db_sync
+        run: ./sync_rds.py --skip-ask --env_target qc --app_name btms-history
+
+      - name: Team Notify of Success
+        uses: mikesprague/teams-incoming-webhook-action@v1
+        with:
+          github-token: ${{ github.token }}
+          webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success'
+          color: 'success'
+      - name: Team Notify of Failure
+        if: ${{ failure() }}
+        uses: mikesprague/teams-incoming-webhook-action@v1
+        with:
+          github-token: ${{ github.token }}
+          webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:'
+          color: 'failure'
+
+  # qc-imaging:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Install SSH key
+  #       uses: shimataro/ssh-key-action@v2
+  #       with:
+  #         key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+  #         known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
+  #         if_key_exists: replace
+
+  #     - name: Configure AWS credentials
+  #       uses: Fooji/create-aws-profile-action@v1
+  #       with:
+  #         profile: sunteck
+  #         region: us-east-1
+  #         key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #     - uses: actions/checkout@v3
+  #     - uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.10'
+
+  #     - name: Bootstrap
+  #       working-directory: ./_devops/db_sync
+  #       run: make bootstrap files
+
+  #     - name: qc-imaging
+  #       working-directory: ./_devops/db_sync
+  #       run: ./sync_rds.py --skip-ask --env_target qc --app_name imaging
+  
+  #      - name: Team Notify of Success
+  #      uses: mikesprague/teams-incoming-webhook-action@v1
+  #      with:
+  #        github-token: ${{ github.token }}
+  #        webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+  #        deploy-card: true
+  #        title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success'
+  #        color: 'success'
+  #    - name: Team Notify of Failure
+  #      if: ${{ failure() }}
+  #      uses: mikesprague/teams-incoming-webhook-action@v1
+  #      with:
+  #        github-token: ${{ github.token }}
+  #        webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+  #        deploy-card: true
+  #        title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:'
+  #        color: 'failure'
+
+  # qc-tms:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Install SSH key
+  #       uses: shimataro/ssh-key-action@v2
+  #       with:
+  #         key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+  #         known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
+  #         if_key_exists: replace
+
+  #     - name: Configure AWS credentials
+  #       uses: Fooji/create-aws-profile-action@v1
+  #       with:
+  #         profile: sunteck
+  #         region: us-east-1
+  #         key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #     - uses: actions/checkout@v3
+  #     - uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.10'
+
+  #     - name: Bootstrap
+  #       working-directory: ./_devops/db_sync
+  #       run: make bootstrap files
+
+  #     - name: qc-tms
+  #       working-directory: ./_devops/db_sync
+  #       run: ./sync_rds.py --skip-ask --env_target qc --app_name tms
+
+  #    - name: Team Notify of Success
+  #      uses: mikesprague/teams-incoming-webhook-action@v1
+  #      with:
+  #        github-token: ${{ github.token }}
+  #        webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+  #        deploy-card: true
+  #        title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success'
+  #        color: 'success'
+  #    - name: Team Notify of Failure
+  #      if: ${{ failure() }}
+  #     uses: mikesprague/teams-incoming-webhook-action@v1
+  #      with:
+  #        github-token: ${{ github.token }}
+  #        webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+  #        deploy-card: true
+  #        title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:'
+  #        color: 'failure'
