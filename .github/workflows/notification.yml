@@ -1,59 +1,55 @@
-name: Tracking Portal Test
+name: Tracking Portal Deploy
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/tracking-test.yml'
-      - 'tracking/**'
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      app_env:
+        required: true
+        type: string
+      bastion:
+        required: true
+        type: string
+      target:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      DEPLOY_SSH_PRIVATE_KEY:
+        required: true
+      MS_TEAMS_WEBHOOK_URI:
+        required: true
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref'
+        description: "Git ref (branch, tag, sha) to deploy"
         required: true
-        default: 'develop'
-  workflow_call:
-    secrets:
-      MS_TEAMS_WEBHOOK_URI:
+        type: string
+      app_env:
+        description: "Application environment (qc, stage, prod)"
         required: true
+        type: string
+      bastion:
+        description: "Bastion server address"
+        required: true
+        type: string
+      target:
+        description: "Target host address"
+        required: true
+        type: string
 
 jobs:
-  static-analysis:
+  deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: 8
-          tools: parallel-lint, cs2pr, composer
-      - name: Lint PHP code
-        run: parallel-lint --checkstyle ./tracking | cs2pr
-      - name: Get composer cache directory
-        id: composer-cache
-        working-directory: ./tracking
-        run: echo "::set-output name=dir::$(composer config cache-files-dir)"
-      - name: Cache dependencies
-        uses: actions/cache@v2
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
-      - name: Install dependencies
-        working-directory: ./tracking
-        run: composer install --prefer-dist
-      - name: Detect coding standard violations
-        continue-on-error: true
-        run: ./tracking/vendor/bin/phpcs --standard=./tracking/phpcs.xml.dist -p --basepath=. --report-full --report-checkstyle=./phpcs-report.xml
-      - name: Show PHPCS results in PR
-        run: cs2pr --graceful-warnings ./phpcs-report.xml
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - run: 'echo "No test required"'
-
-  notify-team-start:
-    if: ${{ github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
+    env:
+      BASTION_HOST: ${{ inputs.bastion }}
+      TARGET_HOST: ${{ inputs.target }}
+      APP_ENV: ${{ inputs.app_env }}
     steps:
       - name: Team Notify Start
         uses: mikesprague/teams-incoming-webhook-action@v1
@@ -61,33 +57,77 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Tracking Portal (${{ github.ref }}) QA/Tests: Started...'
+          title: 'Tracking Portal deployment to ${{ inputs.app_env }} (${{ github.actor }}): Started...'
           color: 'info'
-
-  notify-team-success:
-    if: ${{ github.event_name != 'pull_request' }}
-    needs: [static-analysis, test]
-    runs-on: ubuntu-latest
-    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Configure SSH
+        env:
+          SSH_USER: deploy
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
+          ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${TARGET_HOST}\"" | tee -a ~/.ssh/known_hosts
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Copy environment environment config from S3
+        run: aws s3 cp s3://sunteck-mono/etc/tracking.${APP_ENV}.env ./build/etc/
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Login to Amazon ECR on Remote (OK to fail)
+        # This step fails on newer servers because we are using the ecr credential helper
+        # See https://github.com/awslabs/amazon-ecr-credential-helper
+        # Because of this we set this step ok to continue on error
+        # This step is only needed for old servers will be removed once we have converted all servers to amazon-ecr-credential-helper
+        continue-on-error: true
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          DOCKER_PW="$( aws ecr get-login-password --region us-east-1 )"
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "docker login -u AWS -p ${DOCKER_PW} ${ECR_REGISTRY}"
+      - name: Configure host
+        run: |
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "mkdir -p ~/docker";
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./build/etc/tracking.${APP_ENV}.env "deploy@${TARGET_HOST}:~/docker/tracking.${APP_ENV}.env"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./tracking/provision/docker-compose.${APP_ENV}.yml "deploy@${TARGET_HOST}:~/docker/docker-compose.yml"
+      - name: Integrating with Systemd (Web Application)
+        run: |
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./tracking/provision/docker-tracking.service deploy@${TARGET_HOST}:/tmp/
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo install --owner=root --group=root --mode=0644 /tmp/docker-tracking.service /etc/systemd/system/"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl enable docker-tracking.service"
+      - name: Update and restart tracking service
+        run: |
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml pull -q"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl restart docker-tracking.service"
+      - name: Cleaning docker remnants on host
+        run: |
+          echo "Waiting for systemd to settle before pruning the system" && sleep 2
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker system prune --all --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker volume prune --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker network prune --force"
       - name: Team Notify of Success
-        uses: mikesprague/teams-incoming-webhook-action@v1
+        uses: mikesprague/teams-incoming-webhook-action@v1 
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Tracking Portal (${{ github.ref }}) QA/Tests: Success :white_check_mark:'
+          title: 'Tracking Portal deployment to ${{ inputs.app_env }} (${{ github.actor }}): Success :white_check_mark:'
           color: 'success'
-
-  notify-team-failure:
-    if: ${{ failure() && github.event_name != 'pull_request' }}
-    needs: [static-analysis, test]
-    runs-on: ubuntu-latest
-    steps:
       - name: Team Notify of Failure
+        if: ${{ failure() }}
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'Tracking Portal (${{ github.ref }}) QA/Tests: Failure :o:'
+          title: 'Tracking Portal deployment to ${{ inputs.app_env }} (${{ github.actor }}): Failure :o:'
           color: 'failure'
