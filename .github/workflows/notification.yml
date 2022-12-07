@@ -1,4 +1,4 @@
-name: BTMS Deploy Cron Common
+name: BTMS Deploy App Common
 
 on:
   workflow_call:
@@ -12,7 +12,7 @@ on:
       bastion:
         required: true
         type: string
-      cron_target:
+      app_target:
         required: true
         type: string
     secrets:
@@ -38,8 +38,8 @@ on:
         description: "Bastion server address"
         required: true
         type: string
-      cron_target:
-        description: "Target cron host addresses"
+      app_target:
+        description: "Target app host addresses"
         required: true
         type: string
 
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       BASTION_HOST: ${{ inputs.bastion }}
-      CRON_TARGET_HOST: ${{ inputs.cron_target }}
+      APP_TARGET_HOST: ${{ inputs.app_target }}
       APP_ENV: ${{ inputs.app_env }}
       IMAGE_TAG: ${{ inputs.ref }}
     steps:
@@ -72,7 +72,7 @@ jobs:
           mkdir -p ~/.ssh/ && echo "$SSH_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
 
-          for host in $CRON_TARGET_HOST; do
+          for host in $APP_TARGET_HOST; do
             echo "Running: ssh deploy@${BASTION_HOST} \"ssh-keyscan -H \"${host}\"\" | tee -a ~/.ssh/known_hosts\"\""
             ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${host}\"" | tee -a ~/.ssh/known_hosts
           done
@@ -86,93 +86,104 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: ~ Stop all Docker Containers and Prune Docker with up to 5 Retry ~
+      - name: ~ Stop all Docker Containers ~
         run: |
-          for host in $CRON_TARGET_HOST; do
+          for host in $APP_TARGET_HOST; do
+            # Stop Running Containers
             echo "#### Processing Host ${host} ####"
-            set +e
-            for (( c=1; c<=5; c++ )); do
-              CONTAINER_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps -a | grep btms | wc -l" 2>&1)
-              if ! [[ $CONTAINER_COUNT =~ ^-?[0-9]+$ ]]; then
-                echo "#### $(date) ERROR. $CONTAINER_COUNT Sleep 5 and Update CONTAINER_COUNT to Defaults." && sleep 5 && CONTAINER_COUNT=999
-              fi
-              DOCKER_IMAGES_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker images | grep btms | wc -l"  2>&1)
-              if ! [[ $DOCKER_IMAGES_COUNT =~ ^-?[0-9]+$ ]]; then
-                echo "#### $(date) ERROR. $DOCKER_IMAGES_COUNT Sleep 5 and Update DOCKER_IMAGES_COUNT to Defaults." && sleep 5 && DOCKER_IMAGES_COUNT=999
-              fi
-
-              echo "#### $(date) Before Prune. Image Count: $DOCKER_IMAGES_COUNT. Running Container Count: $CONTAINER_COUNT. Attempt $c"
-
-              ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "sudo systemctl stop docker-btms.service || true && docker-compose -f docker/docker-compose.yml down || true && docker system prune -a -f && docker volume prune -f && docker network prune -f"
-              CONTAINER_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps -a | grep btms | wc -l" 2>&1)
-              if ! [[ $CONTAINER_COUNT =~ ^-?[0-9]+$ ]]; then
-                echo "#### $(date) ERROR. $CONTAINER_COUNT Sleep 5 and Update CONTAINER_COUNT to Defaults." && sleep 5 && CONTAINER_COUNT=999
-              fi
-              DOCKER_IMAGES_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker images | grep btms | wc -l"  2>&1)
-              if ! [[ $DOCKER_IMAGES_COUNT =~ ^-?[0-9]+$ ]]; then
-                echo "#### $(date) ERROR. $DOCKER_IMAGES_COUNT Sleep 5 and Update DOCKER_IMAGES_COUNT to Defaults." && sleep 5 && DOCKER_IMAGES_COUNT=999
-              fi
-
-              if [ "$CONTAINER_COUNT" -eq 0 ]; then
-                echo "#### $(date) System Cleanup SUCCESS. Image Count: $DOCKER_IMAGES_COUNT. Running Docker Count: $CONTAINER_COUNT. Attempt $c"
-                break
-              else
-                echo "#### $(date) System Cleanup FAILED. Image Count: $DOCKER_IMAGES_COUNT. Running Docker Count: $CONTAINER_COUNT. Attempt $c"
-                if [ $c == 5 ]; then
-                  exit 1
-                fi
-              fi
-            done
-            set -e
+            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "sudo systemctl stop docker-btms.service || true && docker-compose -f docker/docker-compose.yml down"
           done
 
-      - name: ~ Pull docker images to cron hosts ~
+      - name: ~ Pull docker images to app hosts + image valiation with up to 3 Retry ~
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           echo "$( aws ecr get-login-password --region us-east-1 )" > DOCKER_PW
           echo "cat ~/docker/DOCKER_PW | docker login -u AWS --password-stdin $ECR_REGISTRY" > DOCKER_LOGIN
 
-          echo "#### Setup and Pull Docker Images on Cron Servers ####"
-          cp ./btms/provision/docker-compose.${APP_ENV}.cron.daemon.yml ./btms/provision/docker-compose.yml
-          cp ./btms/provision/docker-compose.${APP_ENV}.cron.ofelia.yml ./btms/provision/docker-compose.cron.yml
-          cp ./btms/provision/docker-btms-cron.service                  ./btms/provision/docker-btms.service
-          sed -i -e 's|btmsofeliacron|btms-ofelia-eastern-cron btms-ofelia-utc-cron|' ./btms/provision/docker-btms.service
+          echo "#### Setup and Pull Docker Images on App Servers ####"
+          cp ./btms/provision/docker-compose.${APP_ENV}.app.yml ./btms/provision/docker-compose.yml
+          for (( c=1; c<=5; c++ ))
+          do
+            target_host_counter=0
+            match_host_counter=1
 
-          for host in $CRON_TARGET_HOST; do
-            rsync -azq -e 'ssh -o StrictHostKeyChecking=no -A -J deploy@${BASTION_HOST}' DOCKER_PW DOCKER_LOGIN ./build/etc/btms.datadog.env ./build/etc/btms.${APP_ENV}.env ./btms/provision/docker-compose.yml ./btms/provision/docker-compose.cron.yml ./btms/provision/docker-btms.service deploy@${host}:~/docker
-            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "rm -f ~/.docker/config.json && /bin/bash ~/docker/DOCKER_LOGIN && docker-compose -f docker/docker-compose.yml pull -q && rm -f  ~/docker/DOCKER_LOGIN ~/docker/DOCKER_PW"
-            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "sudo install --owner=root --group=root --mode=0644 ~/docker/docker-btms.service /etc/systemd/system/"
-            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "sudo systemctl enable docker-btms.service"
+            echo "Loop through all EC2 hosts to pull images based on docker-compose"
+            for host in $APP_TARGET_HOST; do
+              ((target_host_counter+=1))
+              echo "#### Processing Host ${host} ####"
+              echo "Transfer files to host and execute docker pull"
+              rsync -azq -e 'ssh -o StrictHostKeyChecking=no -A -J deploy@${BASTION_HOST}' DOCKER_PW DOCKER_LOGIN ./build/etc/btms.datadog.env ./build/etc/btms.${APP_ENV}.env ./btms/provision/docker-compose.yml deploy@${host}:~/docker
+              ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "rm -f ~/.docker/config.json && /bin/bash ~/docker/DOCKER_LOGIN && docker-compose -f docker/docker-compose.yml pull -q && rm -f  ~/docker/DOCKER_LOGIN ~/docker/DOCKER_PW"
 
-            echo "#### Pull Images for Cron Host ${host} ####"
-            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "docker-compose -f ~/docker/docker-compose.yml pull -q && docker-compose -f docker/docker-compose.yml images"
-            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "docker-compose -f ~/docker/docker-compose.cron.yml -p btmscron pull -q"
+              echo "Get PHP Docker Image ID from host"
+              HOST_IMAGE_ID=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker images | grep btms-php | grep $IMAGE_TAG" | awk '{print $3}')
+
+              if [ -z "$PHP_IMAGE_ID" ]; then
+                  PHP_IMAGE_ID=$HOST_IMAGE_ID
+                  echo "#### $(date) First host; SET PHP Image ID $PHP_IMAGE_ID for host $host"
+              else
+                  if [ "$PHP_IMAGE_ID" = "$HOST_IMAGE_ID" ]; then
+                      echo "#### $(date) MATCHING PHP Image ID $PHP_IMAGE_ID"
+                      ((match_host_counter+=1))
+                  else
+                      echo "#### $(date) PHP IMAGES ARE NOT MATCHING!!"
+                      echo "#### $(date) EXPECTED $PHP_IMAGE_ID ACTUAL $HOST_IMAGE_ID on host $host"
+                  fi
+              fi
+            done
+            if [ $target_host_counter == $match_host_counter ]; then
+              echo "#### $(date) All $target_host_counter hosts contain same docker image. Attempt $c"
+              break
+            else
+              echo "#### $(date) Some host contain mismatch docker images. Attempt $c"
+              if [ $c == 3 ]; then
+                exit 1
+              fi
+            fi
           done
 
-      - name: ~ Provision Containers with up to 3 Retry (create some; not start) ~
+      - name: ~ Migration + Start dockers with up to 3 Retry ~
         run: |
-          for host in $CRON_TARGET_HOST; do
-            for (( c=1; c<=5; c++ )); do
-              echo "Running: ssh -J deploy@${BASTION_HOST} \"deploy@${host}\" \"sudo systemctl start docker-btms.service\""
-              ssh -J deploy@${BASTION_HOST} "deploy@${host}" "sudo systemctl start docker-btms.service"
+          app_hosts=($APP_TARGET_HOST)
+          echo "#### $(date) Running Migration ####"
+          ssh -AJ deploy@${BASTION_HOST} "deploy@${app_hosts[0]}" "docker-compose -f docker/docker-compose.yml run --rm btmsphp ./bin/phinx migrate";
+          echo "#### $(date) Migration Complete ####"
+
+          for host in $APP_TARGET_HOST; do
+            echo "#### $(date) Processing Host ${host} ####"
+            # Attempt 5 tries to start the docker
+            for (( c=1; c<=5; c++ ))
+            do
+              # echo "#### $(date) docker-compose up -d ####"
+              # ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker-compose -f ~/docker/docker-compose.yml up -d"
+              echo "#### $(date) systemctl start docker-btms.service ####"
+              ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "sudo systemctl start docker-btms.service"
 
               target_sleep=$((5+$c*5))
               echo "#### $(date) sleep $target_sleep ####"
               sleep $target_sleep
 
-              CONTAINER_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps -a | grep btms | wc -l")
-              DOCKER_IMAGES_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker images | grep btms | wc -l")
-              if [ "$CONTAINER_COUNT" -gt 0 ]; then
-                echo "#### $(date) Startup SUCCESS. Image Count: $DOCKER_IMAGES_COUNT. Running Docker Count: $CONTAINER_COUNT. Attempt $c"
+              RUNNING_CONTAINER_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps | grep btms | wc -l")
+              if [ $RUNNING_CONTAINER_COUNT == 4 ]; then
+                echo "#### $(date) Running docker count of 4 as expected on host $host. Attempt $c"
                 break
               else
-                echo "#### $(date) Startup FAILED. Image Count: $DOCKER_IMAGES_COUNT. Running Docker Count: $CONTAINER_COUNT. Attempt $c"
+                echo "#### $(date) Incorrect running docker count on host $host. Expect: 4; Actual: $RUNNING_CONTAINER_COUNT. Attempt $c. Sleep $target_sleep"
+                sleep $target_sleep
+                RUNNING_DOCKER_DETAILS=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps | grep btms | wc -l")
+                echo $RUNNING_DOCKER_DETAILS
                 if [ $c == 3 ]; then
                   exit 1
                 fi
               fi
             done
+          done
+
+      - name: Prune App Servers images / volumes / network
+        run: |
+          for host in $APP_TARGET_HOST; do
+            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker system prune -a -f && docker volume prune -f && docker network prune -f"
           done
 
   notify-team-start:
@@ -184,7 +195,7 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: "BTMS Deploy ${{ inputs.app_env }} Cron EC2 ${{ inputs.ref }} Start"
+          title: 'BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Start'
           color: 'info'
 
   notify-team-success:
@@ -197,7 +208,7 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'BTMS Deploy ${{ inputs.app_env }} Cron EC2 ${{ inputs.ref }} Success'
+          title: 'BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Success'
           color: 'success'
 
   notify-team-failure:
@@ -211,5 +222,5 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'BTMS Deploy ${{ inputs.app_env }} Cron EC2 ${{ inputs.ref }} Failure'
+          title: 'BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Failure'
           color: 'failure'
