@@ -1,71 +1,35 @@
-name: Carrier Portal Build
+name: Carrier Portal Prod Build
 
 on:
-  workflow_call:
-    inputs:
-      ref:
-        required: true
-        type: string
-    secrets:
-      AWS_ACCESS_KEY_ID:
-        required: true
-      AWS_SECRET_ACCESS_KEY:
-        required: true
-      MS_TEAMS_WEBHOOK_URI:
-        required: true
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/carriers-*.yml'
+      - 'carriers/**'
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref (branch, tag, sha) to build"
+        description: 'Git ref'
         required: true
-        type: string
+        default: 'master'
 
 jobs:
+  test:
+    uses: ./.github/workflows/carriers-test.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
   build:
-    runs-on: ubuntu-latest
-    env:
-      GIT_REF: ${{ inputs.ref }}
-      IMAGE_TAG: ${{ inputs.ref }}
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          ref: ${{ inputs.ref }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Build and push app image
-        uses: docker/build-push-action@v2
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: sunteck/carriers
-        with:
-          context: carriers/php/
-          push: true
-          target: app
-          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:php-${{ env.IMAGE_TAG }}
-          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:php-${{ env.IMAGE_TAG }}
-          cache-to: type=inline
-
-      - name: Build and push web image
-        uses: docker/build-push-action@v2
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: sunteck/carriers
-        with:
-          context: carriers/nginx/
-          push: true
-          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:nginx-${{ env.IMAGE_TAG }}
-          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:nginx-${{ env.IMAGE_TAG }}
-          cache-to: type=inline
+    needs: [test]
+    uses: ./.github/workflows/carriers-build.yml
+    with:
+      ref: master
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      MS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
 
   notify-team-start:
     runs-on: ubuntu-latest
@@ -76,11 +40,11 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: "Carrier Portal ${{ inputs.ref }} build (${{ github.actor }}): Started..."
+          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Started...'
           color: 'info'
 
   notify-team-success:
-    needs: [build]
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Success
@@ -89,12 +53,12 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: "Carrier Portal ${{ inputs.ref }} build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:"
+          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Success :white_check_mark:'
           color: 'success'
 
   notify-team-failure:
-    if: failure()
-    needs: [build]
+    if: ${{ failure() }}
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
@@ -103,5 +67,5 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: "Carrier Portal ${{ inputs.ref }} build (${{ github.actor }}): Failure :o:"
+          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Failure :o:'
           color: 'failure'
