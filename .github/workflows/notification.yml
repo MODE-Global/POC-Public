@@ -1,82 +1,107 @@
-name: Carrier Portal QC Deploy
+name: Carrier Portal Build
 
 on:
-  push:
-    branches:
-      - develop
-    paths:
-      - '.github/workflows/carriers-*.yml'
-      - 'carriers/**'
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      MS_TEAMS_WEBHOOK_URI:
+        required: true
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref'
+        description: "Git ref (branch, tag, sha) to build"
         required: true
-        default: 'develop'
+        type: string
 
 jobs:
-  test:
-    uses: ./.github/workflows/carriers-test.yml
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
   build:
-    needs: [test]
-    uses: ./.github/workflows/carriers-build.yml
-    with:
-      ref: develop
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      MS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+    runs-on: ubuntu-latest
+    env:
+      GIT_REF: ${{ inputs.ref }}
+      IMAGE_TAG: ${{ inputs.ref }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.ref }}
 
-  deploy:
-    needs: [build]
-    uses: ./.github/workflows/carriers-deploy.yml
-    with:
-      ref: develop
-      app_env: qc
-      target: 10.1.0.14 # replace with secret ex: ${{ secrets.envHOST }}
-      bastion: bastion.qc.modetrans.com
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-      MS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/carriers
+        with:
+          context: carriers/php/
+          push: true
+          target: app
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:php-${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:php-${{ env.IMAGE_TAG }}
+          cache-to: type=inline
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/carriers
+        with:
+          context: carriers/nginx/
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:nginx-${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:nginx-${{ env.IMAGE_TAG }}
+          cache-to: type=inline
 
   notify-team-start:
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify Start
-        uses: jdcargile/ms-teams-notification@v1.3
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Started..."
-          notification-color: 28a745
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: "Carrier Portal ${{ inputs.ref }} build (${{ github.actor }}): Started..."
+          color: 'info'
 
   notify-team-success:
-    needs: [test]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Success
-        uses: jdcargile/ms-teams-notification@v1.3
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Success :white_check_mark:"
-          notification-color: 33ff66
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: "Carrier Portal ${{ inputs.ref }} build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:"
+          color: 'success'
 
   notify-team-failure:
-    if: ${{ failure() }}
-    needs: [test]
+    if: failure()
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
-        uses: jdcargile/ms-teams-notification@v1.3
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Failure :o:"
-          notification-color: ff0000
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: "Carrier Portal ${{ inputs.ref }} build (${{ github.actor }}): Failure :o:"
+          color: 'failure'
