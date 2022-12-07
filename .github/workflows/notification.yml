@@ -1,4 +1,4 @@
-name: BTMS Deploy App Common
+name: BTMS Build
 
 on:
   workflow_call:
@@ -6,53 +6,28 @@ on:
       ref:
         required: true
         type: string
-      app_env:
-        required: true
-        type: string
-      bastion:
-        required: true
-        type: string
-      app_target:
-        required: true
-        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
       AWS_SECRET_ACCESS_KEY:
-        required: true
-      DEPLOY_SSH_PRIVATE_KEY:
         required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref (branch, tag, sha) to deploy"
-        required: true
-        type: string
-      app_env:
-        description: "Application environment (qc, stage, production)"
-        required: true
-        type: string
-      bastion:
-        description: "Bastion server address"
-        required: true
-        type: string
-      app_target:
-        description: "Target app host addresses"
+        description: "Git ref (branch, tag, sha) to build"
         required: true
         type: string
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     env:
-      BASTION_HOST: ${{ inputs.bastion }}
-      APP_TARGET_HOST: ${{ inputs.app_target }}
-      APP_ENV: ${{ inputs.app_env }}
+      GIT_REF: ${{ inputs.ref }}
       IMAGE_TAG: ${{ inputs.ref }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
         with:
           ref: ${{ inputs.ref }}
 
@@ -63,128 +38,60 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Configure SSH
-        env:
-          SSH_USER: deploy
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-        run: |
-          echo "Setup Github Action Host"
-          mkdir -p ~/.ssh/ && echo "$SSH_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
-
-          for host in $APP_TARGET_HOST; do
-            echo "Running: ssh deploy@${BASTION_HOST} \"ssh-keyscan -H \"${host}\"\" | tee -a ~/.ssh/known_hosts\"\""
-            ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${host}\"" | tee -a ~/.ssh/known_hosts
-          done
-
-      - name: Copy environment environment config from S3
-        run: |
-          aws s3 cp s3://sunteck-mono/etc/btms.datadog.env ./build/etc/
-          aws s3 cp s3://sunteck-mono/etc/btms.${APP_ENV}.env ./build/etc/
-
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: ~ Stop all Docker Containers ~
-        run: |
-          for host in $APP_TARGET_HOST; do
-            # Stop Running Containers
-            echo "#### Processing Host ${host} ####"
-            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "sudo systemctl stop docker-btms.service || true && docker-compose -f docker/docker-compose.yml down"
-          done
-
-      - name: ~ Pull docker images to app hosts + image valiation with up to 3 Retry ~
+      - name: Build and push apache image
+        uses: docker/build-push-action@v2
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        run: |
-          echo "$( aws ecr get-login-password --region us-east-1 )" > DOCKER_PW
-          echo "cat ~/docker/DOCKER_PW | docker login -u AWS --password-stdin $ECR_REGISTRY" > DOCKER_LOGIN
+          REPOSITORY: sunteck/btms-apache
+        with:
+          context: btms/apache/
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
 
-          echo "#### Setup and Pull Docker Images on App Servers ####"
-          cp ./btms/provision/docker-compose.${APP_ENV}.app.yml ./btms/provision/docker-compose.yml
-          for (( c=1; c<=5; c++ ))
-          do
-            target_host_counter=0
-            match_host_counter=1
+      - name: Build and push php image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/btms-php
+        with:
+          context: btms/php/
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
 
-            echo "Loop through all EC2 hosts to pull images based on docker-compose"
-            for host in $APP_TARGET_HOST; do
-              ((target_host_counter+=1))
-              echo "#### Processing Host ${host} ####"
-              echo "Transfer files to host and execute docker pull"
-              rsync -azq -e 'ssh -o StrictHostKeyChecking=no -A -J deploy@${BASTION_HOST}' DOCKER_PW DOCKER_LOGIN ./build/etc/btms.datadog.env ./build/etc/btms.${APP_ENV}.env ./btms/provision/docker-compose.yml deploy@${host}:~/docker
-              ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "rm -f ~/.docker/config.json && /bin/bash ~/docker/DOCKER_LOGIN && docker-compose -f docker/docker-compose.yml pull -q && rm -f  ~/docker/DOCKER_LOGIN ~/docker/DOCKER_PW"
+      - name: Build and push rails image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/btms-rails
+        with:
+          context: btms/rails/
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
 
-              echo "Get PHP Docker Image ID from host"
-              HOST_IMAGE_ID=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker images | grep btms-php | grep $IMAGE_TAG" | awk '{print $3}')
-
-              if [ -z "$PHP_IMAGE_ID" ]; then
-                  PHP_IMAGE_ID=$HOST_IMAGE_ID
-                  echo "#### $(date) First host; SET PHP Image ID $PHP_IMAGE_ID for host $host"
-              else
-                  if [ "$PHP_IMAGE_ID" = "$HOST_IMAGE_ID" ]; then
-                      echo "#### $(date) MATCHING PHP Image ID $PHP_IMAGE_ID"
-                      ((match_host_counter+=1))
-                  else
-                      echo "#### $(date) PHP IMAGES ARE NOT MATCHING!!"
-                      echo "#### $(date) EXPECTED $PHP_IMAGE_ID ACTUAL $HOST_IMAGE_ID on host $host"
-                  fi
-              fi
-            done
-            if [ $target_host_counter == $match_host_counter ]; then
-              echo "#### $(date) All $target_host_counter hosts contain same docker image. Attempt $c"
-              break
-            else
-              echo "#### $(date) Some host contain mismatch docker images. Attempt $c"
-              if [ $c == 3 ]; then
-                exit 1
-              fi
-            fi
-          done
-
-      - name: ~ Migration + Start dockers with up to 3 Retry ~
-        run: |
-          app_hosts=($APP_TARGET_HOST)
-          echo "#### $(date) Running Migration ####"
-          ssh -AJ deploy@${BASTION_HOST} "deploy@${app_hosts[0]}" "docker-compose -f docker/docker-compose.yml run --rm btmsphp ./bin/phinx migrate";
-          echo "#### $(date) Migration Complete ####"
-
-          for host in $APP_TARGET_HOST; do
-            echo "#### $(date) Processing Host ${host} ####"
-            # Attempt 5 tries to start the docker
-            for (( c=1; c<=5; c++ ))
-            do
-              # echo "#### $(date) docker-compose up -d ####"
-              # ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker-compose -f ~/docker/docker-compose.yml up -d"
-              echo "#### $(date) systemctl start docker-btms.service ####"
-              ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} "deploy@${host}" "sudo systemctl start docker-btms.service"
-
-              target_sleep=$((5+$c*5))
-              echo "#### $(date) sleep $target_sleep ####"
-              sleep $target_sleep
-
-              RUNNING_CONTAINER_COUNT=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps | grep btms | wc -l")
-              if [ $RUNNING_CONTAINER_COUNT == 4 ]; then
-                echo "#### $(date) Running docker count of 4 as expected on host $host. Attempt $c"
-                break
-              else
-                echo "#### $(date) Incorrect running docker count on host $host. Expect: 4; Actual: $RUNNING_CONTAINER_COUNT. Attempt $c. Sleep $target_sleep"
-                sleep $target_sleep
-                RUNNING_DOCKER_DETAILS=$(ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker ps | grep btms | wc -l")
-                echo $RUNNING_DOCKER_DETAILS
-                if [ $c == 3 ]; then
-                  exit 1
-                fi
-              fi
-            done
-          done
-
-      - name: Prune App Servers images / volumes / network
-        run: |
-          for host in $APP_TARGET_HOST; do
-            ssh -o StrictHostKeyChecking=no -J deploy@${BASTION_HOST} deploy@${host} "docker system prune -a -f && docker volume prune -f && docker network prune -f"
-          done
+      - name: Build and push cron image
+        uses: docker/build-push-action@v2
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: sunteck/btms-cron
+        with:
+          context: btms/provision/
+          file: ./btms/provision/Dockerfile.cron
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+          cache-to: type=inline
+          build-args: |
+            BRANCH=${{ env.IMAGE_TAG }}
 
   notify-team-start:
     runs-on: ubuntu-latest
@@ -193,13 +100,13 @@ jobs:
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URL }}
           deploy-card: true
-          title: 'BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Start'
+          title: 'BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Started...'
           color: 'info'
 
   notify-team-success:
-    needs: [deploy]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Success
@@ -208,12 +115,12 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Success'
+          title: 'BTMS `${{ inputs.ref }}` build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:'
           color: 'success'
 
   notify-team-failure:
     if: failure()
-    needs: [deploy]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
@@ -222,5 +129,5 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'BTMS Deploy ${{ inputs.app_env }} App EC2 ${{ inputs.ref }} Failure'
+          title: 'BTMS `${{ inputs.ref }}` build (${{ github.actor }}): Failure :o:'
           color: 'failure'
