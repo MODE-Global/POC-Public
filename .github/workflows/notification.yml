@@ -1,102 +1,93 @@
-name: Database Sync - Tuesday
+name: Tracking Portal Test
 
 on:
-  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
-  # schedule:
-  #   - cron: '0 5 * * 2'
+  pull_request:
+    paths:
+      - '.github/workflows/tracking-test.yml'
+      - 'tracking/**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref'
+        required: true
+        default: 'develop'
+  workflow_call:
+    secrets:
+      MS_TEAMS_WEBHOOK_URI:
+        required: true
 
 jobs:
-  qc-btms:
+  static-analysis:
     runs-on: ubuntu-latest
     steps:
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
+      - uses: actions/checkout@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
-          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
-          if_key_exists: replace
-
-      - name: Configure AWS credentials
-        uses: Fooji/create-aws-profile-action@v1
+          php-version: 8
+          tools: parallel-lint, cs2pr, composer
+      - name: Lint PHP code
+        run: parallel-lint --checkstyle ./tracking | cs2pr
+      - name: Get composer cache directory
+        id: composer-cache
+        working-directory: ./tracking
+        run: echo "::set-output name=dir::$(composer config cache-files-dir)"
+      - name: Cache dependencies
+        uses: actions/cache@v2
         with:
-          profile: sunteck
-          region: us-east-1
-          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Bootstrap
-        working-directory: ./_devops/db_sync
-        run: make bootstrap files
-
-      - name: qc-btms
-        working-directory: ./_devops/db_sync
-        run: ./sync_rds.py --skip-ask --env_target qc --app_name btms
-         
-      - name: Team Notify of Success
-        uses: jdcargile/ms-teams-notification@v1.3
-        with:
-          github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success"
-          notification-color: 33ff66
-      - name: Team Notify of Failure
-        if: ${{ failure() }}
-        uses: jdcargile/ms-teams-notification@v1.3
-        with:
-          github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:"
-          notification-color: ff0000
-
-  qc-btms-history:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+      - name: Install dependencies
+        working-directory: ./tracking
+        run: composer install --prefer-dist
+      - name: Detect coding standard violations
+        continue-on-error: true
+        run: ./tracking/vendor/bin/phpcs --standard=./tracking/phpcs.xml.dist -p --basepath=. --report-full --report-checkstyle=./phpcs-report.xml
+      - name: Show PHPCS results in PR
+        run: cs2pr --graceful-warnings ./phpcs-report.xml
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
+      - run: 'echo "No test required"'
+
+  notify-team-start:
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Team Notify Start
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
-          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
-          if_key_exists: replace
+          github-token: ${{ github.token }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'Tracking Portal (${{ github.ref }}) QA/Tests: Started...'
+          color: 'info'
 
-      - name: Configure AWS credentials
-        uses: Fooji/create-aws-profile-action@v1
-        with:
-          profile: sunteck
-          region: us-east-1
-          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Bootstrap
-        working-directory: ./_devops/db_sync
-        run: make bootstrap files
-
-      - name: qc-btms-history
-        working-directory: ./_devops/db_sync
-        run: ./sync_rds.py --skip-ask --env_target qc --app_name btms-history
-
+  notify-team-success:
+    if: ${{ github.event_name != 'pull_request' }}
+    needs: [static-analysis, test]
+    runs-on: ubuntu-latest
+    steps:
       - name: Team Notify of Success
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test success"
+          title: 'Tracking Portal (${{ github.ref }}) QA/Tests: Success :white_check_mark:'
           color: 'success'
-          
+
+  notify-team-failure:
+    if: ${{ failure() && github.event_name != 'pull_request' }}
+    needs: [static-analysis, test]
+    runs-on: ubuntu-latest
+    steps:
       - name: Team Notify of Failure
-        if: ${{ failure() }}
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): Test failed:'
+          title: 'Tracking Portal (${{ github.ref }}) QA/Tests: Failure :o:'
           color: 'failure'
