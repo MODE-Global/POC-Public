@@ -93,7 +93,7 @@ jobs:
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
           title: 'Imaging `${{ inputs.ref }}` Build Failure.'
           color: 'failure'
