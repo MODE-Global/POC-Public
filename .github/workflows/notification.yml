@@ -1,9 +1,9 @@
-name: Carrier Portal Stage Deploy
+name: Carrier Portal QC Deploy
 
 on:
   push:
     branches:
-      - release
+      - develop
     paths:
       - '.github/workflows/carriers-*.yml'
       - 'carriers/**'
@@ -12,7 +12,7 @@ on:
       ref:
         description: 'Git ref'
         required: true
-        default: 'release'
+        default: 'develop'
 
 jobs:
   test:
@@ -25,7 +25,7 @@ jobs:
     needs: [test]
     uses: ./.github/workflows/carriers-build.yml
     with:
-      ref: release
+      ref: develop
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -35,10 +35,10 @@ jobs:
     needs: [build]
     uses: ./.github/workflows/carriers-deploy.yml
     with:
-      ref: release
-      app_env: stage
-      target: 10.2.0.14 # replace with secret ex: ${{ secrets.envHOST }}
-      bastion: bastion.stage.modetrans.com
+      ref: develop
+      app_env: qc
+      target: 10.1.0.14 # replace with secret ex: ${{ secrets.envHOST }}
+      bastion: bastion.qc.modetrans.com
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -49,24 +49,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify Start
-        uses: jdcargile/ms-teams-notification@v1.3
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Started..."
-          notification-color: 28a745
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Started...'
+          color: 'info'
 
   notify-team-success:
     needs: [test]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Success
-        uses: jdcargile/ms-teams-notification@v1.3
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Success :white_check_mark:"
-          notification-color: 33ff66
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Success :white_check_mark:'
+          color: 'success'
 
   notify-team-failure:
     if: ${{ failure() }}
@@ -74,9 +76,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
-        uses: jdcargile/ms-teams-notification@v1.3
+        uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
-          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Failure :o:"
-          notification-color: ff0000
+          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          deploy-card: true
+          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Failure :o:'
+          color: 'failure'
