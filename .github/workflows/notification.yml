@@ -1,71 +1,55 @@
-name: SLC Test
+name: SLC Deploy
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      app_env:
+        required: true
+        type: string
+      bastion:
+        required: true
+        type: string
+      target:
+        required: true
+        type: string
     secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      DEPLOY_SSH_PRIVATE_KEY:
+        required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
-  pull_request:
-    paths:
-      - '.github/workflows/slc-test.yml'
-      - 'slc/**'
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref'
+        description: "Git ref (branch, tag, sha) to deploy"
         required: true
-        default: 'develop'
+        type: string
+      app_env:
+        description: "Application environment (qc, stage, prod)"
+        required: true
+        type: string
+      bastion:
+        description: "Bastion server address"
+        required: true
+        type: string
+      target:
+        description: "Target host address"
+        required: true
+        type: string
 
 jobs:
-  static-analysis:
+  deploy:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.0'
-          coverage: none
-          tools: parallel-lint, phpcs, cs2pr
-      - name: Lint PHP code
-        run:  parallel-lint --checkstyle ./slc | cs2pr
-      - name: Detect coding standard violations
-        continue-on-error: true
-        run: phpcs --standard=slc/phpcs.xml.dist -p --basepath=. --report-full --report-checkstyle=./phpcs-report-slc.xml
-      - name: Show PHPCS results in PR
-        run: cs2pr --graceful-warnings ./phpcs-report-slc.xml
-      - name: Install dependencies
-        run: composer install
-        working-directory: ./slc
-      - name: Run Psalm
-        run: ./slc/vendor/bin/psalm --config=slc/psalm.xml --output-format=github ./slc/src/
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      - name: Build and cache test image
-        uses: docker/build-push-action@v2
-        with:
-          context: ./slc
-          target: appdev
-          push: false
-          load: true
-          tags: sunteck/slc:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Run Tests
-        run: |
-          docker-compose -f slc/docker-compose.ci.yml up -d db
-          docker-compose -f slc/docker-compose.ci.yml run --rm slc ./bin/wait-for-it.sh db:5432 -- ./bin/console doctrine:migrations:migrate -v --no-interaction
-          docker-compose -f slc/docker-compose.ci.yml run --rm slc ./bin/wait-for-it.sh db:5432 -- ./bin/console doctrine:fixtures:load --no-interaction
-          docker-compose -f slc/docker-compose.ci.yml run --rm slc ./bin/wait-for-it.sh db:5432 -- ./bin/phpunit
-          docker-compose -f slc/docker-compose.ci.yml down
-
-  notify-team-start:
-    if: ${{ github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
+    env:
+      BASTION_HOST: ${{ inputs.bastion }}
+      TARGET_HOST: ${{ inputs.target }}
+      APP_ENV: ${{ inputs.app_env }}
     steps:
       - name: Team Notify Start
         uses: mikesprague/teams-incoming-webhook-action@v1
@@ -73,33 +57,87 @@ jobs:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'SLC (${{ github.ref }}) QA/Tests: Started...'
+          title: 'SLC deployment to ${{ inputs.app_env }} (${{ github.actor }}): Started...'
           color: 'info'
-
-  notify-team-success:
-    if: ${{ github.event_name != 'pull_request' }}
-    needs: [static-analysis, test]
-    runs-on: ubuntu-latest
-    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Configure SSH
+        env:
+          SSH_USER: deploy
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${BASTION_HOST}" | tee -a ~/.ssh/known_hosts
+          ssh deploy@${BASTION_HOST} "ssh-keyscan -H \"${TARGET_HOST}\"" | tee -a ~/.ssh/known_hosts
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Copy environment environment config from S3
+        run: |
+          aws s3 cp s3://sunteck-mono/etc/slc.datadog.env ./build/etc/
+          aws s3 cp s3://sunteck-mono/etc/slc.${APP_ENV}.env ./build/etc/
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Login to Amazon ECR on Remote (OK to fail)
+        # This step fails on newer servers because we are using the ecr credential helper
+        # See https://github.com/awslabs/amazon-ecr-credential-helper
+        # Because of this we set this step ok to continue on error
+        # This step is only needed for old servers will be removed once we have converted all servers to amazon-ecr-credential-helper
+        continue-on-error: true
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          DOCKER_PW="$( aws ecr get-login-password --region us-east-1 )"
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "docker login -u AWS -p ${DOCKER_PW} ${ECR_REGISTRY}"
+      - name: Configure host
+        run: |
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "mkdir -p ~/docker";
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./build/etc/slc.datadog.env "deploy@${TARGET_HOST}:~/docker/slc.datadog.env"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./build/etc/slc.${APP_ENV}.env "deploy@${TARGET_HOST}:~/docker/slc.${APP_ENV}.env"
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./slc/provision/docker-compose.${APP_ENV}.yml "deploy@${TARGET_HOST}:~/docker/docker-compose.yml"
+          ssh -J deploy@${BASTION_HOST} deploy@${TARGET_HOST} "docker network prune --force";
+      - name: Integrating with Systemd (Web Application)
+        run: |
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./slc/provision/docker-slc.service deploy@${TARGET_HOST}:/tmp/
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo install --owner=root --group=root --mode=0644 /tmp/docker-slc.service /etc/systemd/system/"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl enable docker-slc.service"
+      - name: Integrating with Systemd (Worker)
+        run: |
+          scp -o "ProxyJump deploy@${BASTION_HOST}" ./slc/provision/docker-slc-worker.service deploy@${TARGET_HOST}:/tmp/
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo install --owner=root --group=root --mode=0644 /tmp/docker-slc-worker.service /etc/systemd/system/"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl enable docker-slc-worker.service"
+      - name: Update and restart SLC service
+        run: |
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml pull -q"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "sudo systemctl restart docker-slc.service docker-slc-worker.service"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker-compose -f docker/docker-compose.yml run --rm slc ./bin/console doctrine:migrations:migrate --no-interaction"
+      - name: Cleaning docker remnants on host
+        run: |
+          echo "Waiting for systemd to settle before pruning the system" && sleep 2
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker system prune --all --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker volume prune --force"
+          ssh -J deploy@${BASTION_HOST} "deploy@${TARGET_HOST}" "docker network prune --force"
       - name: Team Notify of Success
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'SLC (${{ github.ref }}) QA/Tests: Success :white_check_mark:'
+          title: 'SLC deployment to ${{ inputs.app_env }} (${{ github.actor }}): Success :white_check_mark:'
           color: 'success'
-
-  notify-team-failure:
-    if: ${{ failure() && github.event_name != 'pull_request' }}
-    needs: [static-analysis, test]
-    runs-on: ubuntu-latest
-    steps:
       - name: Team Notify of Failure
+        if: ${{ failure() }}
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'SLC (${{ github.ref }}) QA/Tests: Failure :o:'
+          title: 'SLC deployment to ${{ inputs.app_env }} (${{ github.actor }}): Failure :o:'
           color: 'failure'
