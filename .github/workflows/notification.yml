@@ -1,11 +1,7 @@
-name: SLC Build
+name: Imaging Test
 
 on:
   workflow_call:
-    inputs:
-      ref:
-        required: true
-        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -13,91 +9,134 @@ on:
         required: true
       MS_TEAMS_WEBHOOK_URI:
         required: true
+  pull_request:
+    paths:
+      - '.github/workflows/imaging-test.yml'
+      - 'imaging/**'
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref (branch, tag, sha) to build"
+        description: 'Git ref'
         required: true
-        type: string
+        default: 'develop'
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - repo: sunteck/slc
-            target: app
-          - repo: sunteck/slc_web
-            target: web
-    env:
-      GIT_REF: ${{ inputs.ref }}
-      IMAGE_TAG: ${{ inputs.ref }}
+        php: [ 7.4, 8.0 ]
     steps:
       - uses: actions/checkout@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
-          ref: ${{ inputs.ref }}
-
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: parallel-lint, cs2pr
+      - name: Lint PHP code
+        run: parallel-lint --checkstyle ./imaging | cs2pr
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 7.2
+          tools: parallel-lint, cs2pr, composer:v1
+      - name: Lint PHP code
+        run: parallel-lint --checkstyle ./imaging | cs2pr
+      - name: Get composer cache directory
+        id: composer-cache
+        working-directory: ./imaging
+        run: echo "::set-output name=dir::$(composer config cache-files-dir)"
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+      - name: Install dependencies
+        working-directory: ./imaging
+        run: composer install --prefer-dist --no-scripts
+      - name: Detect coding standard violations
+        continue-on-error: true
+        run: ./imaging/vendor/bin/phpcs --standard=./imaging/phpcs.xml.dist -p --basepath=. --report-full --report-checkstyle=./phpcs-report.xml
+      - name: Show PHPCS results in PR
+        run: cs2pr --graceful-warnings ./phpcs-report.xml
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./imaging
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Build and push image
+      - name: Copy dependencies from S3
+        run: |
+          aws s3 cp s3://sunteck-mono/libs/php_pdflib-9.1.2-php7.2-nts.so build/php_pdflib-9.1.2-php7.2-nts.so
+          aws s3 cp s3://sunteck-mono/etc/imaging.testing.env ../build/etc/
+      - name: Build and cache test image
         uses: docker/build-push-action@v2
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ matrix.repo }}
-          TARGET: ${{ matrix.target }}
         with:
-          context: slc/
-          target: ${{ env.TARGET }}
-          push: true
-          tags: ${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
-          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
-          cache-to: type=inline
+          context: ./imaging
+          target: appdev
+          push: false
+          load: true
+          tags: sunteck/imaging:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run tests
+        run: |
+          docker-compose -f provision/docker-compose.ci.yml run --rm phptest ./provision/wait-for-it.sh -t 15 mysqltest:3306
+          docker-compose -f provision/docker-compose.ci.yml run --rm phptest php artisan migrate --seed
+          docker-compose -f provision/docker-compose.ci.yml run --rm phptest ./vendor/phpunit/phpunit/phpunit
 
-  notify-team-start:
+  notify-teams-start:
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Team Notify Start
+      - name: Notify Teams of Start
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'SLC `${{ inputs.ref }}` build (${{ github.actor }}): Started...'
+          title: 'Imaging (${{ github.ref }}) QA/Tests Started.'
           color: 'info'
 
-  notify-team-success:
-    needs: [build]
+  notify-teams-success:
+    if: ${{ github.event_name != 'pull_request' }}
+    needs: [static-analysis, test]
     runs-on: ubuntu-latest
     steps:
-      - name: Team Notify of Success
+      - name: Notify Teams of Success
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'SLC `${{ inputs.ref }}` build (${{ github.actor }}) completed successfully. Image was pushed to ECR and is available to be deployed. :white_check_mark:'
+          title: 'Imaging (${{ github.ref }}) QA/Tests Success.'
           color: 'success'
 
-  notify-team-failure:
-    if: failure()
-    needs: [build]
+  notify-teams-failure:
+    if: ${{ failure() && github.event_name != 'pull_request' }}
+    needs: [static-analysis, test]
     runs-on: ubuntu-latest
     steps:
-      - name: Team Notify of Failure
+      - name: Notify Teams of Failure
         uses: mikesprague/teams-incoming-webhook-action@v1
         with:
           github-token: ${{ github.token }}
           webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
           deploy-card: true
-          title: 'SLC `${{ inputs.ref }}` build (${{ github.actor }}): Failure :o:'
+          title: 'Imaging (${{ github.ref }}) QA/Tests Failure.'
           color: 'failure'
