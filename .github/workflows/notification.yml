@@ -35,26 +35,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify Start
-        uses: mikesprague/teams-incoming-webhook-action@v1
+        uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          deploy-card: true
-          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Started...'
-          color: 'info'
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Started..."
+          notification-color: 28a745
 
   notify-team-success:
     needs: [test]
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Success
-        uses: mikesprague/teams-incoming-webhook-action@v1
+        uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          deploy-card: true
-          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Success :white_check_mark:'
-          color: 'success'
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Success :white_check_mark:"
+          notification-color: 33ff66
 
   notify-team-failure:
     if: ${{ failure() }}
@@ -62,10 +60,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Team Notify of Failure
-        uses: mikesprague/teams-incoming-webhook-action@v1
+        uses: jdcargile/ms-teams-notification@v1.3
         with:
           github-token: ${{ github.token }}
-          webhook-url: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
-          deploy-card: true
-          title: 'Carrier Portal (${{ github.ref }}) QA/Tests: Failure :o:'
-          color: 'failure'
+          ms-teams-webhook-uri: ${{ secrets.MS_TEAMS_WEBHOOK_URI }}
+          notification-summary: "Carrier Portal (${{ github.ref }}) QA/Tests: Failure :o:"
+          notification-color: ff0000
