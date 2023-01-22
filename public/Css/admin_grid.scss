@@ -1,0 +1,75 @@
+@import './variable';
+
+
+.admin-grid-status-active{
+    background-color: $secondary-color;
+}
+.admin-grid-status-inactive{
+    background-color: $on-hold-status;
+}
+.admin-grid-status-pv{
+    background-color: $at-origin-status;
+}
+
+//admin and all loads page header alignment styles starts here
+.admin-header-contents {
+    display: flex;
+}
+@media only screen and (max-width: 704px) {
+    .admin-header-contents {
+        display: block;
+    }
+    .admin-margin-start-filter
+    {
+        margin-left: 0px !important;
+    }
+}
+.admin-margin-start-search
+{
+    margin-left: 15px;
+}
+.admin-margin-start-filter
+{
+    margin-left: 15px;
+}
+.admin-header-alignment
+{
+    display: flex;
+}
+@media only screen and (max-width: 704px) {
+    .admin-header-alignment
+    {
+        display: unset;
+    }
+
+}
+.admin-search-wid
+{
+    width: max-content;
+}
+@media only screen and (max-width: 381px) {
+    .admin-search-wid
+    {
+        width: 100%;
+    }
+    .admin-margin-start-search
+    {
+        margin-left: 0px;
+    }
+}
+@media only screen and (min-width: 395px) and (max-width: 528px) {
+    .admin-margin-start-search
+    {
+        margin-right: 15px !important;
+    }
+}
+.admin-newuser-btn {
+    margin-left: 15px;
+}
+@media only screen and (max-width: 528px) {
+    .admin-newuser-btn {
+        margin-left: 0px;
+    }
+}
+
+// admin and all loads page header alignment styles ends here

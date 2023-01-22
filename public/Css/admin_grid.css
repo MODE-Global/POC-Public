@@ -1,0 +1,118 @@
+@font-face {
+  font-family: "Barlow Bold";
+  src: url("../Fonts/Barlow-Bold.eot") format("embedded-opentype"), url("../Fonts/Barlow-Bold.woff2") format("woff2"), url("../Fonts/Barlow-Bold.woff") format("woff"), url("../Fonts/Barlow-Bold.svg") format("svg"), url("../Fonts/Barlow-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Semibold";
+  src: url("../Fonts/Barlow-SemiBold.eot") format("embedded-opentype"), url("../Fonts/Barlow-SemiBold.woff2") format("woff2"), url("../Fonts/Barlow-SemiBold.woff") format("woff"), url("../Fonts/Barlow-SemiBold.svg") format("svg"), url("../Fonts/Barlow-SemiBold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lato Regular";
+  src: url("../Fonts/Lato-Regular.eot") format("embedded-opentype"), url("../Fonts/Lato-Regular.woff2") format("woff2"), url("../Fonts/Lato-Regular.woff") format("woff"), url("../Fonts/Lato-Regular.svg") format("svg"), url("../Fonts/Lato-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lato Medium";
+  src: url("../Fonts/Lato-Medium.eot") format("embedded-opentype"), url("../Fonts/Lato-Medium.woff2") format("woff2"), url("../Fonts/Lato-Medium.woff") format("woff"), url("../Fonts/Lato-Medium.svg") format("svg"), url("../Fonts/Lato-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lato Semibold";
+  src: url("../Fonts/Lato-Semibold.eot") format("embedded-opentype"), url("../Fonts/Lato-Semibold.woff2") format("woff2"), url("../Fonts/Lato-Semibold.woff") format("woff"), url("../Fonts/Lato-Semibold.svg") format("svg"), url("../Fonts/Lato-Semibold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lato Bold";
+  src: url("../Fonts/Lato-Bold.eot") format("embedded-opentype"), url("../Fonts/Lato-Bold.woff2") format("woff2"), url("../Fonts/Lato-Bold.woff") format("woff"), url("../Fonts/Lato-Bold.svg") format("svg"), url("../Fonts/Lato-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Lato Extra Bold";
+  src: url("../Fonts/Lato-ExtraBold.eot") format("embedded-opentype"), url("../Fonts/Lato-ExtraBold.woff2") format("woff2"), url("../Fonts/Lato-ExtraBold.woff") format("woff"), url("../Fonts/Lato-ExtraBold.svg") format("svg"), url("../Fonts/Lato-ExtraBold.ttf") format("truetype");
+  font-weight: bolder;
+  font-style: normal;
+  font-display: swap;
+}
+.admin-grid-status-active {
+  background-color: #00873E;
+}
+
+.admin-grid-status-inactive {
+  background-color: #C0C0C0;
+}
+
+.admin-grid-status-pv {
+  background-color: #FC9D33;
+}
+
+.admin-header-contents {
+  display: flex;
+}
+
+@media only screen and (max-width: 704px) {
+  .admin-header-contents {
+    display: block;
+  }
+  .admin-margin-start-filter {
+    margin-left: 0px !important;
+  }
+}
+.admin-margin-start-search {
+  margin-left: 15px;
+}
+
+.admin-margin-start-filter {
+  margin-left: 15px;
+}
+
+.admin-header-alignment {
+  display: flex;
+}
+
+@media only screen and (max-width: 704px) {
+  .admin-header-alignment {
+    display: unset;
+  }
+}
+.admin-search-wid {
+  width: -webkit-max-content;
+  width: -moz-max-content;
+  width: max-content;
+}
+
+@media only screen and (max-width: 381px) {
+  .admin-search-wid {
+    width: 100%;
+  }
+  .admin-margin-start-search {
+    margin-left: 0px;
+  }
+}
+@media only screen and (min-width: 395px) and (max-width: 528px) {
+  .admin-margin-start-search {
+    margin-right: 15px !important;
+  }
+}
+.admin-newuser-btn {
+  margin-left: 15px;
+}
+
+@media only screen and (max-width: 528px) {
+  .admin-newuser-btn {
+    margin-left: 0px;
+  }
+}/*# sourceMappingURL=admin_grid.css.map */

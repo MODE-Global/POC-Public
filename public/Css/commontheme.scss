@@ -1,0 +1,836 @@
+@import './variable';
+
+/*!
+ * Common Theme - To be referred for the theming of the application
+ * Theme Components Includes - Breadcrumbs, Buttons, Navigation, Highlights, Colors, Forms, Tables, etc.
+ */
+
+/* Styles for Body Background Color */
+body {
+    background-color: $body-bgcolor;
+}
+
+
+/* Breadcrumb styles starts here */
+ul.breadcrumb {
+    list-style: none;
+}
+
+ul.breadcrumb li {
+    display: inline;
+    font-size: $font-size-12;
+    font-family: $primary-font-medium;
+}
+
+ul.breadcrumb li+li:before {
+    padding: $padding-0 $padding-8;
+    vertical-align: middle;
+    content: '';
+    background-image: url('../Images/breadcrumb-arrow.svg');
+    background-repeat: no-repeat;
+}
+
+ul.breadcrumb li a {
+    padding-right: $padding-8;
+    color: $primary-color;
+    text-decoration: none;
+}
+
+ul.breadcrumb li a:hover {
+    text-decoration: underline !important;
+    cursor: pointer;
+}
+
+/* Breadcrumb styles ends here */
+
+/* Table styles starts here */
+.cp-grid {
+    white-space: nowrap;
+    background-color: $white-color;
+    border-radius: $t-border-radius-4;
+    border: $t-border-radius-1 solid $border-color;
+}
+.grid-textbold{
+    font-family: $primary-font-extrabold;
+}
+.grid-bold{
+    font-family: $primary-font-bold;
+}
+.cp-table-head {
+    background-color: $t-head-bgcolor;
+    border-radius: $t-border-radius-4;
+    border-bottom: $size-1-2 solid $border-color;
+}
+
+.cp-grid tr:nth-child(even) {
+    background-color: $t-alternate-bgcolor;
+}
+
+.cp-grid th {
+    padding: $padding-16;
+    font-size: $font-size-15;
+    font-family: $primary-font-bold;
+    color: $t-head-color;
+}
+
+.cp-grid tbody td {
+    padding: $padding-16;
+    font-size: $font-size-14;
+    font-family: $primary-font-semibold;
+    color: $t-body-color;
+}
+
+.cp-table-sort {
+    width: $sort-icon-width;
+    height: $sort-icon-height;
+    cursor: pointer;
+}
+
+.cp-grid th:first-child {
+    border-radius: $t-border-radius-4 0 0 0;
+}
+
+.cp-grid th:last-child {
+    border-radius: 0 $t-border-radius-4 0 0;
+}
+
+.cp-grid tr:last-child td:first-child {
+    border-radius: 0 0 0 $t-border-radius-4;
+}
+
+.cp-grid tr:last-child td:last-child {
+    border-radius: 0 0 $t-border-radius-4 0;
+}
+
+.cp-grid-pdf {
+    width: $t-pdf-icon-width;
+    height: $t-pdf-icon-height;
+}
+
+.cp-grid-count {
+    padding: $padding-6;
+    background-color: $link-color;
+    color: $white-color;
+    border-radius: $button-border-radius-3;
+    line-height: $line-height-1;
+}
+
+.cp-grid-secondary-text {
+    font-size: $font-size-13;
+    font-family: $primary-font-medium;
+    color: $secondary-text-color;
+}
+
+.cp-grid-records {
+    color: $secondary-text-color;
+    font-family: $primary-font-medium;
+    font-size: $font-size-15;
+}
+
+.cp-grid-record-count {
+    color: $t-head-color;
+    font-family: $primary-font-semibold;
+}
+
+//Table Status Styles
+.cp-grid-status {
+    width: $cp-grid-status-width;
+    height: $cp-grid-status-height;
+    border-radius: $percent-50;
+    display: inline-block;
+}
+
+.active-status {
+    background-color: $primary-color;
+}
+
+.invoiced-status {
+    background-color: $invoiced-status;
+}
+
+.on-hold-status {
+    background-color: $on-hold-status;
+}
+
+.booked-status {
+    background-color: $booked-status;
+}
+
+.dispatched-status {
+    background-color: $dispatched-status;
+}
+
+.at-origin-status {
+    background-color: $at-origin-status;
+}
+
+.picked-up-status {
+    background-color: $pickedup-status;
+}
+
+.in-transit-status {
+    background-color: $in-transit-status;
+}
+
+.out-of-delivery-status {
+    background-color: $out-of-delivery-status;
+}
+
+.at-destination-status {
+    background-color: $at-destination-status;
+}
+
+.delivered-status {
+    background-color: $delivered-status;
+}
+
+.delivered-final-status {
+    background-color: $delivered-final-status;
+}
+
+.pool-status {
+    background-color: $pool-status;
+}
+
+.dead-status {
+    background-color: $dead-status;
+}
+
+/* Table styles ends here */
+
+/* Common Styles */
+.pointer {
+    cursor: pointer;
+}
+
+//Data Styles starts here
+.cp-link {
+    text-decoration: none;
+    color: $link-color;
+    cursor: pointer;
+}
+
+.cp-link:hover {
+    text-decoration: underline;
+    color: $link-color-focus;
+}
+
+.page-header-txt {
+    font-family: $page-heading-font;
+    font-size: $font-size-22;
+    color: $page-heading-color;
+}
+
+
+/* Form Styles starts here */
+.cp-form-label {
+    font-family: $primary-font-semibold;
+    font-size: $font-size-14;
+    color: $form-label-color;
+    margin-bottom: $form-label-margin-bottom;
+}
+
+.cp-form-mandatory {
+    color: $dead-status;
+}
+
+.cp-form-field {
+    border: $border-radius-1 solid $border-color;
+    height: $button-height;
+    border-radius: $button-border-radius-3;
+    font-family: $primary-font-medium;
+    font-size: $font-size-14;
+}
+
+.cp-form-field:focus {
+    border-color: $primary-color;
+    box-shadow: none;
+}
+
+.cp-textarea {
+    height: $commentbox-height;
+}
+
+.cp-search {
+    border-top-right-radius: $button-border-radius-3;
+    border-bottom-right-radius: $button-border-radius-3;
+    background-color: $white-color;
+}
+
+.cp-checkbox {
+    border: $border-radius-1 solid $border-color;
+    width: $checkbox-width;
+    height: $checkbox-height;
+}
+
+.cp-checkbox:focus {
+    border: $border-radius-1 solid $primary-color;
+    box-shadow: none;
+}
+
+.cp-checkbox:active {
+    background-color: $primary-color;
+    border: none;
+}
+
+.cp-checkbox:checked {
+    background-color: $primary-color;
+    border: none;
+}
+
+/* Form Styles ends here */
+
+/* Button Styles starts here */
+.cp-btn-primary {
+    font-family: $primary-font-semibold;
+    font-size: $font-size-14;
+    padding: $padding-0 $padding-24;
+    height: $button-height;
+    border-radius: $button-border-radius-3;
+    background-color: $primary-color;
+    color: $white-color;
+    border: none;
+}
+
+.cp-btn-primary:hover {
+    background-color: $primary-color-focus;
+    color: $white-color;
+}
+
+.cp-btn-primary:active {
+    background-color: $primary-color-focus !important;
+    color: $white-color !important;
+}
+
+.cp-btn-primary:focus {
+    background-color: $primary-color-focus;
+    color: $white-color;
+    box-shadow: $cp-btn-primary-boxshadow;
+}
+
+.cp-btn-primary.disabled, .cp-btn-primary:disabled, fieldset:disabled .cp-btn-primary {
+    color: $white-color;
+    pointer-events: none;
+    background-color: $primary-color;
+}
+
+.cp-btn-secondary {
+    font-family: $primary-font-semibold;
+    font-size: $font-size-14;
+    padding: $padding-0 $padding-24;
+    height: $button-height;
+    border-radius: $button-border-radius-3;
+    background-color: $secondary-color;
+    color: $white-color;
+    border: none;
+}
+
+.cp-btn-secondary:hover {
+    background-color: $secondary-color-focus;
+    color: $white-color;
+}
+
+.cp-btn-secondary:active {
+    background-color: $secondary-color-focus !important;
+    color: $white-color !important;
+}
+
+.cp-btn-secondary:focus {
+    background-color: $secondary-color-focus;
+    color: $white-color;
+    box-shadow: $cp-btn-secondary-boxshadow;
+}
+
+.cp-btn-tertiary {
+    font-family: $primary-font-semibold;
+    font-size: $font-size-14;
+    padding: $padding-0 $padding-24;
+    height: $button-height;
+    border-radius: $button-border-radius-3;
+    background-color: $white-color;
+    color: $secondary-text-color;
+    border: $size-1 solid $secondary-text-color;
+}
+
+.cp-btn-tertiary:hover {
+    background-color: $secondary-text-color;
+    color: $white-color;
+}
+
+.cp-btn-tertiary:active {
+    background-color: $secondary-text-color !important;
+    color: $white-color !important;
+    border: $size-1 solid $secondary-text-color !important;
+}
+
+.cp-btn-tertiary:focus {
+    background-color: $secondary-text-color;
+    color: $white-color;
+    box-shadow: $cp-btn-secondary-boxshadow;
+}
+
+.cp-btn-tertiary {
+    font-family: $primary-font-semibold;
+    font-size: $font-size-14;
+    padding: $padding-0 $padding-24;
+    height: $button-height;
+    border-radius: $button-border-radius-3;
+    background-color: $white-color;
+    color: $secondary-text-color;
+    border: $size-1 solid $secondary-text-color;
+}
+
+.cp-btn-tertiary:hover {
+    background-color: $secondary-text-color;
+    color: $white-color;
+}
+
+.cp-btn-tertiary:active {
+    background-color: $secondary-text-color !important;
+    color: $white-color !important;
+    border: $size-1 solid $secondary-text-color !important;
+}
+
+.cp-btn-tertiary:focus {
+    background-color: $secondary-text-color;
+    color: $white-color;
+    box-shadow: $cp-btn-tertiary-boxshadow;
+}
+
+.cp-btn-filter {
+    font-family: $primary-font-semibold;
+    font-size: $font-size-14;
+    padding: $padding-0 $padding-24;
+    height: $button-height;
+    width: max-content;
+    border-radius: $button-border-radius-3;
+    background-color: $white-color;
+    color: $secondary-color;
+    border: $size-1 solid $border-color;
+}
+
+.cp-btn-filter:hover {
+    background-color: $filter-btn-color-focus;
+    color: $secondary-color;
+    border: $size-1 solid $secondary-color;
+}
+
+.cp-btn-filter:active {
+    background-color: $filter-btn-color-focus !important;
+    color: $secondary-color !important;
+}
+
+.cp-btn-filter.show {
+    background-color: $white-color;
+    color: $secondary-color;
+    border: $size-1 solid $secondary-color;
+}
+
+.cp-btn-filter:focus {
+    background-color: $filter-btn-color-focus;
+    color: $secondary-color;
+    box-shadow: $cp-btn-primary-boxshadow;
+}
+
+.cp-btn-loadmore {
+    font-family: $primary-font-semibold;
+    font-size: $font-size-14;
+    padding: $padding-0 $padding-24;
+    height: $button-height;
+    width: max-content;
+    border-radius: $button-border-radius-3;
+    background-color: $white-color;
+    color: $secondary-color;
+    border: $size-1 solid $secondary-color;
+}
+
+.cp-btn-loadmore:hover {
+    background-color: $filter-btn-color-focus;
+    color: $secondary-color;
+    border: $size-1 solid $secondary-color;
+}
+
+.cp-btn-loadmore:active {
+    background-color: $filter-btn-color-focus !important;
+    color: $secondary-color !important;
+}
+
+.cp-btn-loadmore.show {
+    background-color: $white-color;
+    color: $secondary-color;
+    border: $size-1 solid $secondary-color;
+}
+
+.cp-btn-loadmore:focus {
+    background-color: $filter-btn-color-focus;
+    color: $secondary-color;
+    box-shadow: $cp-btn-primary-boxshadow;
+}
+/* Button Styles ends here */
+
+/* Filter Styles starts here */
+.advanced-filter {
+    width: $adv-filter-width;
+    left: auto;
+    right: 0px;
+}
+
+.adv-filter-title {
+    color: $page-heading-color;
+    font-family: $primary-font-bold;
+    font-size: $font-size-18;
+}
+
+/* Filter Styles ends here */
+
+// Accordion btn sty code starts here
+.cp-accordion-body-padding {
+    padding-left: $cp-section-accbody-padding;
+    padding-right: $cp-section-accbody-padding;
+}
+
+.cp-accordion-header {
+    background-color: $white-color;
+    font-size: $font-size-16;
+    font-family: $primary-font-bold;
+    color: $primary-color;
+}
+
+.cp-accordion-header.collapsed {
+
+    color: $secondary-text-color;
+}
+
+.cp-accordion-header.collapsed.completed {
+
+    color: $primary-text-color;
+}
+
+.cp-accordion-header.completed {
+
+    color: $primary-color;
+}
+
+.cp-accordion-brd-radius {
+    border-radius: $acc-radius;
+}
+
+.cp-accordion-button::before {
+    padding: $cp-section-accbtn-padding-tb $cp-section-accbtn-padding-lr;
+    flex-shrink: 0;
+    width: $accordion-complete-icon-width;
+    height: $accordion-complete-icon-height;
+    content: "";
+    margin-left: unset !important;
+    background-image: url('../Images/cp-accordion-close-icon.svg') !important;
+    background-repeat: no-repeat;
+    background-size: 1.25rem;
+    transition: transform 0.2s ease-in-out;
+    // margin-right: 15px;
+}
+
+.cp-accordion-button.completed::before {
+    padding: $cp-section-accbtn-padding-tb $cp-section-accbtn-padding-lr;
+    flex-shrink: 0;
+    width: $accordion-complete-icon-width;
+    height: $accordion-complete-icon-height;
+    content: "";
+    margin-left: unset !important;
+    background-image: url('../Images/cp-accordion-completed-icon.svg') !important;
+    background-repeat: no-repeat;
+    background-size: 1.25rem;
+    transition: transform 0.2s ease-in-out;
+    // margin-right: 15px;
+}
+
+.cp-accordion-button:not(.collapsed)::before {
+    background-image: url('../Images/cp-accordion-open-icon.svg') !important;
+    transform: rotate(180deg);
+}
+
+.cp-textarea {
+    resize: $cp-textarea;
+}
+
+// .primary-info-accordion {
+//     font-family: $primary-font-medium;
+//     font-size: $font-size-16;
+//     color: $primary-color;
+//     position: absolute;
+//     right: 50px;
+//     top: 18px;
+// }
+
+.primary-info-accordion {
+    font-family: $primary-font-medium;
+    font-size: $font-size-16;
+    color: $primary-color !important;
+}
+
+.ctl-header-accordion::after {
+    padding: $padding-0 $padding-8;
+    flex-shrink: 0;
+    width: 8px;
+    height: 10px;
+    display: inline-block;
+    content: "";
+    margin-left: $padding-8;
+    background-image: url('../Images/primary-info-acc-closed.svg');
+    background-repeat: no-repeat;
+    background-size: 0.9rem;
+    transition: transform .2s ease-in-out;
+}
+
+// .ctl-header-accordion:not(.collapsed) {
+//     color: unset;
+//     box-shadow: none;
+//     border: none;
+//     background-color: unset;
+// }
+
+// .ctl-header-accordion::after {
+//     background-image: url('../Images/primary-info-acc-closed.svg');
+// }
+
+.ctl-header-accordion:not(.collapsed)::after {
+    background-image: url('../Images/primary-info-acc-open.svg');
+    transform: none;
+}
+// Accordion btn sty code ends here
+
+// Table-accordion styles starts here
+.cp-tbl-acc-button::before
+{
+    padding: $cp-section-accbtn-padding-tb $cp-section-accbtn-padding-lr;
+    flex-shrink: 0;
+    width: $accordion-complete-icon-width;
+    height: $accordion-complete-icon-height;
+    content: "";
+    margin-left: unset !important;
+    background-image: url('../Images/t-accordion-close.svg') !important;
+    background-repeat: no-repeat;
+    background-size: 1.15rem;
+    transition: transform 0.2s ease-in-out;
+}
+.cp-tbl-acc-button:not(.collapsed)::before
+{
+    background-image: url('../Images/t-accordion-open.svg') !important;
+    transform: rotate(180deg);
+}
+.tbl-acc-btn
+{
+    background-color: transparent;
+    border: none;
+}
+.tbl-acc-alt-rowclr
+{
+    background-color: $t-alternate-bgcolor ;
+}
+.table-parent-accordion{
+    border-left:3px solid #125E66!important;
+    box-shadow: $t-acc-boxshadow ;
+}
+.taccordion-data-width
+{
+    width: $percent-20;
+}
+.t-data-label {
+    font-family: $primary-font-bold;
+    font-size: $font-size-14;
+    color: $primary-text-color;
+}
+// Table-accordion styles ends here
+
+// Text Styles Starts here
+.primary-header{
+    font-family: $primary-font-bold;
+    font-size: $font-size-18;
+    color: $primary-text-color;
+}
+
+.data-label {
+    font-family: $primary-font-bold;
+    font-size: $font-size-16;
+    color: $primary-text-color;
+    margin-bottom: $padding-6;
+}
+
+.data-txt {
+    font-family: $primary-font-medium;
+    font-size: $font-size-14;
+    color: $secondary-text-color;
+}
+
+//Icon Styles Starts Here
+.title-icon{
+    width: $title-icon-width;
+    height: $title-icon-height;
+}
+
+.back-icon {
+    width: $back-icon-width;
+    height: $back-icon-height;
+}
+
+// Popup Styles Starts here
+.success-icon{
+    width: $success-icon-width;
+    height: $success-icon-height;
+}
+
+.success-popup-width
+{
+    max-width: $cp-success-popup-width;
+}
+
+.weight-validation-popup
+{
+    max-width: $weight-validation-popup;
+}
+
+.popup-header{
+    font-family: $page-heading-font;
+    font-size: $font-size-20;
+    color: $primary-text-color;
+}
+
+.popup-txt{
+    font-family: $primary-font-semibold;
+    font-size: $font-size-16;
+    color: $secondary-text-color;
+}
+// Popup Styles Ends here
+
+//responsive font style starts here
+@media only screen and (max-width: 1150px) {
+    .page-header-txt {
+        font-size: $font-size-20;
+    }
+    .primary-header {
+        font-size: $font-size-16;
+    }
+    
+    .data-label {
+        font-size: $font-size-14;
+    }
+    
+    .data-txt {
+        font-size: $font-size-12;
+    }
+}
+
+
+.cp-background {
+    background-color: $white-color;
+    padding: $padding-20;
+    border-radius: $border-radius-4;
+    min-height: 90vh;
+}
+
+//footer styles starts here
+.cp-footer {
+    text-align: center;
+    background-color: $primary-color;
+    color: $white-color;
+    font-size: $font-size-12;
+    font-family: $primary-font-semibold;
+  }
+
+ // Advanced filter styles 
+
+@media only screen and (min-width: 1001px) {
+    .advanced-filter
+    {
+        width: 450px;
+        left: auto !important;
+        right: 0px !important;
+    }
+    }
+    @media only screen and (min-width: 500px) and (max-width: 1000px) {
+        .advanced-filter
+        {
+            width: 450px;
+        }
+        }
+    @media only screen and (max-width: 499px) {
+        .advanced-filter
+        {
+            width: 300px;
+        }
+    }
+
+// search box style 
+    .search-form-field {
+        border: $border-radius-1 solid $border-color;
+        height: $button-height;
+        border-radius: $button-border-radius-3;
+        font-family: $primary-font-medium;
+        font-size: $font-size-14;
+    }
+    .search-form-field:focus {
+        border-color: $border-color;
+        box-shadow: none;
+    }
+
+// delete icon style
+.delete-icon
+{
+    width: 32px;
+    height: 32px;
+}
+@media only screen and (max-width: 499px) {
+    .delete-icon
+    {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+// popup grid scroll style starts here
+
+.popupgrid-scroll-sty::-webkit-scrollbar {
+    width: $size-6 !important;
+    height: $size-6 !important;
+}
+
+.popupgrid-scroll-sty::-webkit-scrollbar-track {
+    background: $doc-card-bg-color;
+}
+
+.popupgrid-scroll-sty::-webkit-scrollbar-thumb {
+    background: $secondary-text-color;
+    border-radius: $border-radius-10;
+}
+.popupgrid-scroll-sty {
+    scrollbar-width: thin;
+    overflow-y: scroll;
+    height: $cp-popup-grid-scrl-hight;
+}
+
+//404 not found image style
+.notfound-popup-img-sty
+{
+    width: $cp-404-popup-img-width;
+    height: $cp-404-popup-img-height;
+}
+
+//container position
+.container-pos-rel
+{
+    position: relative;
+}
+.overlay {
+    position: fixed;
+    background: $white-color;
+    width: $loader-overlay-width;
+    height: $loader-overlay-height;
+    top: $loader-overlay-top;
+    opacity: $loader-overlay-opacity;
+    z-index: $loader-overlay-z-index;
+}
+//add & edit admin page grid no records found image style
+.add-admin-norec
+{
+    width: $add-admin-norec-width;
+    height: $add-admin-norec-height;
+}
