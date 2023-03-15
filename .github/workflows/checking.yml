@@ -1,12 +1,13 @@
-name: Swagger deploy
-on: [push]
+name: checkingtype
+on:
+  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually 
+  
+  workflow_call:
 
 jobs:
 
-  build:
-
+  snapshot:
     runs-on: ubuntu-latest
-
     steps:
 
       - name: Pipeline Trigger
