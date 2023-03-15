@@ -11,7 +11,7 @@ jobs:
       
       - name: Create snapshots
 #         if: env.NEED == 'true'
-        uses: ./.github/workflows/db_snapshots.yml 
+        uses: ./.github/workflows/checking.yml
      
 
 
