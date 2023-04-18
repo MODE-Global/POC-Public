@@ -6,10 +6,10 @@ on:
 
 jobs:
     deploy:
-    runs-on: ubuntu-latest
-    outputs:
-      deploy-status: ${{ steps.check.outputs.triggered }}
-    steps:
+      runs-on: ubuntu-latest
+      outputs:
+        deploy-status: ${{ steps.check.outputs.triggered }}
+      steps:
         - name: Checking
           run: echo "first step"
           id: check  
