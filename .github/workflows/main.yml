@@ -1,8 +1,8 @@
 name: Database Sync - biweekly
 on:
-  workflow_dispatch:
+  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
   schedule:
-     - cron: '* * * * TUE'
+     - cron: '* * * * TUE' 
 jobs:
   Testing:
     runs-on: ubuntu-latest
