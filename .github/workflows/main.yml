@@ -22,7 +22,7 @@ jobs:
           fi
       
   Testing1:
-    if: env.NEED == 'true'
+    if: ${{ env.NEED == 'true' }}
     # Update this value to reference a valid GitHub Actions action
     uses: ./.github/workflows/checking.yml
 
