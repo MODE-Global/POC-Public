@@ -5,14 +5,14 @@ on:
 #      - cron: '0 0 * * TUE' # corrected cron schedule to run every Tuesday at midnight
 
 jobs:
-
-  Testing:
+    deploy:
     runs-on: ubuntu-latest
     outputs:
       deploy-status: ${{ steps.check.outputs.triggered }}
     steps:
         - name: Checking
           run: echo "first step"
+          id: check  
          
       #- uses: actions/checkout@v3
         
@@ -27,12 +27,12 @@ jobs:
 #             echo "False"
 #           fi
       
-  Testing1:
+    Testing1:
     #if: ${{ env.NEED == 'true' }}
     # Update this value to reference a valid GitHub Actions action
-    needs: [Testing]
-    if: needs.deploy.outputs.deploy-status == 'true'
-    uses: ./.github/workflows/checking.yml
+      needs: [deploy]
+      if: needs.deploy.outputs.deploy-status == 'true'
+      uses: ./.github/workflows/checking.yml
 
 
 
