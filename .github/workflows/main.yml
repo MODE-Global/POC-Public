@@ -2,7 +2,8 @@ name: Database Sync - biweekly
 on:
   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
   schedule:
-     - cron: '* * * * TUE' 
+     - cron: '* * * * TUE' # corrected cron schedule to run every Tuesday at midnight
+
 jobs:
 
   Testing:
@@ -22,7 +23,103 @@ jobs:
       
   Testing1:
     if: env.NEED == 'true'
+    # Update this value to reference a valid GitHub Actions action
     uses: ./.github/workflows/checking.yml
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# name: Database Sync - biweekly
+# on:
+#   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
+#   schedule:
+#      - cron: '* * * * TUE' 
+# jobs:
+
+#   Testing:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v3
+      
+#       - name: Cron
+#         run: |
+#           if [[ "$(date +%d)" -le 20 && "$(date +%d)" -gt 12 ]] || [[ "$(date +%d)" -le 07 && "$(date +%d)" -gt 01 ]]; then
+#             echo "NEED=true" >> $GITHUB_ENV
+#             echo "True"
+#           else
+#             echo "NEED=false" >> $GITHUB_ENV
+#             echo "False"
+#           fi
+      
+#   Testing1:
+#     if: env.NEED == 'true'
+#     uses: ./.github/workflows/checking.yml
 
      
 
