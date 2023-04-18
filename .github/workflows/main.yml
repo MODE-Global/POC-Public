@@ -2,7 +2,7 @@ name: Database Sync - biweekly
 on:
   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
   schedule:
-     - cron: '* * * * TUE' # corrected cron schedule to run every Tuesday at midnight
+     - cron: '0 0 * * TUE' # corrected cron schedule to run every Tuesday at midnight
 
 jobs:
 
