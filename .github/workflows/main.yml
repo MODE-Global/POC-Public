@@ -4,13 +4,26 @@ on:
   schedule:
      - cron: '* * * * TUE' 
 jobs:
+
   Testing:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
+      - name: Cron
+        run: |
+          if [[ "$(date +%d)" -le 20 && "$(date +%d)" -gt 12 ]] || [[ "$(date +%d)" -le 07 && "$(date +%d)" -gt 01 ]]; then
+            echo "NEED=true" >> $GITHUB_ENV
+            echo "True"
+          else
+            echo "NEED=false" >> $GITHUB_ENV
+            echo "False"
+          fi
+      
   Testing1:
-    if: github.ref == 'refs/heads/develop'
+    if: env.NEED == 'true'
     uses: ./.github/workflows/checking.yml
+
      
 
 
