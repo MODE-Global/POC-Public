@@ -24,6 +24,6 @@ jobs:
     needs: [Job1, Job2]
     steps:
       - name: Delay for 15 minutes
-        run: sleep 900 # 900 seconds = 15 minutes
+        run: sleep 30 # 900 seconds = 15 minutes
       - name: Job3 Testing
         run: echo "Job3 Third"
