@@ -31,3 +31,12 @@ jobs:
         run: sleep 30 # 900 seconds = 15 minutes
       - name: Job3 Testing
         run: echo "Job3 Third"
+        
+  Job4:
+    runs-on: ubuntu-latest
+    needs: [Job1, Job2]
+    steps:
+      - name: Delay for 30 sec
+        run: sleep 30 # 900 seconds = 15 minutes
+      - name: Job4 Testing
+        run: echo "Job4 Third"      
