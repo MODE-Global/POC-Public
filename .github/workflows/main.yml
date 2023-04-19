@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [Job1, Job2]
     steps:
-      - name: Delay for 15 minutes
+      - name: Delay for 30 sec
         run: sleep 30 # 900 seconds = 15 minutes
       - name: Job3 Testing
         run: echo "Job3 Third"
