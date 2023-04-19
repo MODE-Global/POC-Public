@@ -63,7 +63,7 @@ jobs:
         
   qb-btms-history:
     runs-on: ubuntu-latest
-    needs: [qc-btms, qb-btms-history]
+    needs: [dev-tms, dev-imaging]
     if: always() # always run even if a previous step fails
     steps:
       - name: Delay for 30 sec
