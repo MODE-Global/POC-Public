@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      #- name: Job1 Testing
-        #run: echo "Job1 first"
-      - name: Intentionally fail Job 1
-        run: exit 1    
+      - name: Job1 Testing
+        run: echo "Job1 first"
+      #- name: Intentionally fail Job 1
+        #run: exit 1    
         
   Job2:
     runs-on: ubuntu-latest
@@ -32,8 +32,8 @@ jobs:
         run: sleep 30 # 900 seconds = 15 minutes
       - name: Job3 Testing
         run: echo "Job3 Third"
-      - name: Intentionally fail Job 3
-        run: exit 1    
+      #- name: Intentionally fail Job 3
+        #run: exit 1    
         
   Job4:
     runs-on: ubuntu-latest
@@ -55,8 +55,10 @@ jobs:
     steps:
       - name: Delay for 30 sec
         run: sleep 30 # 900 seconds = 15 minutes
-      - name: Job3 Testing
+      - name: Job5 Testing
         run: echo "Job5 Third"
+      - name: Intentionally fail Job 4
+        run: exit 1  
         
         
   Job6:
@@ -66,5 +68,7 @@ jobs:
     steps:
       - name: Delay for 30 sec
         run: sleep 30 # 900 seconds = 15 minutes
-      - name: Job4 Testing
-        run: echo "Job6 Third"      
+      - name: Job6 Testing
+        run: echo "Job6 Third"
+      #- name: Intentionally fail Job 4
+        #run: exit 1  
