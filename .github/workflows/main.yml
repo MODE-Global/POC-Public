@@ -14,10 +14,10 @@ jobs:
         run: echo "Job1 first"
         
   Job2:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Job2 Testing
-        run: echo "Job2 Second"
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Job2 Testing
+#         run: echo "Job2 Second"
         
   Job3:
     runs-on: ubuntu-latest
