@@ -10,16 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Job1 Testing
-        run: echo "Job1 first"
+      #- name: Job1 Testing
+        #run: echo "Job1 first"
+      - name: Intentionally fail Job 1
+        run: exit 1    
         
   Job2:
     runs-on: ubuntu-latest
     steps:
-#       - name: Job2 Testing
-#         run: echo "Job2 Second"
-      - name: Intentionally fail Job 2
-        run: exit 1  
+      - name: Job2 Testing
+        run: echo "Job2 Second"
+      #- name: Intentionally fail Job 2
+        #run: exit 1  
         
   Job3:
     runs-on: ubuntu-latest
