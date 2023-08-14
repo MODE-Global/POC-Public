@@ -1,11 +1,33 @@
-name: Database Sync - Tuesday
-
+name: Database Sync - biweekly
 on:
-  workflow_dispatch:
-  #schedule:
-    #- cron: '*/2 * * * *'
-     
+  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
+  schedule:
+     - cron: '*/3 * * * *'
+     - cron: '*/4 * * * *'
+
 jobs:
+  Schedule_Validation:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.check.outputs.triggered }}
+    steps:
+      - name: cron
+        run: |
+            if [[ "$(date '+%m-%d')" == "08-14" ]]; then
+                echo "Triggering the Scheduled Pipeline"
+            else
+              echo "Skipping the Pipeline as it is not scheduled to run in this specified date"
+              exit 1           
+            fi
+
+# name: Database Sync - Tuesday
+
+# on:
+#   workflow_dispatch:
+#   #schedule:
+#     #- cron: '*/2 * * * *'
+     
+# jobs:
   dev-btms:
     runs-on: ubuntu-latest
     steps:
