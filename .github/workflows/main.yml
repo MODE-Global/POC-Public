@@ -78,11 +78,11 @@ jobs:
         #run: exit 1    
         
   dev-imaging:
-    # needs: [Schedule_Validation, dev-btms, dev-btms-history]
-    # if: ${{ needs.Schedule_Validation.outputs.status }}== 'true' && always ()
+    needs: [Schedule_Validation, dev-btms, dev-btms-history]
+    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true' && always ()
     runs-on: ubuntu-latest
-    needs: [dev-btms, dev-btms-history,Schedule_Validation ]
-    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'  # always run even if a previous step fails
+    # needs: [dev-btms, dev-btms-history,Schedule_Validation ]
+    # if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'  # always run even if a previous step fails
     steps:
       - name: Delay for 30 sec
         run: sleep 10 # 900 seconds = 15 minutes
