@@ -46,10 +46,10 @@ jobs:
     if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Job2 Testing
-        run: echo "Job2 Second"
-      # - name: Intentionally fail Job 2
-      #   run: exit 1
+      # - name: Job2 Testing
+      #   run: echo "Job2 Second"
+      - name: Intentionally fail Job 2
+        run: exit 1
     outputs:
       job_status: ${{ job.status }}
 
