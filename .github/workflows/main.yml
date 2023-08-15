@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: cron
         run: |
-            if [[ "$(date '+%m-%d')" == "08-15" ]]; then
+            if [[ "$(date '+%m-%d')" == "08-1" ]]; then
                 echo "Triggering the Scheduled Pipeline"
             else
               echo "Skipping the Pipeline as it is not scheduled to run in this specified date"
