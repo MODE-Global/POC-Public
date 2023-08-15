@@ -54,10 +54,10 @@ jobs:
       job_status: ${{ job.status }}
 
   dev-tms:
-    runs-on: ubuntu-latest
     needs: [dev-btms, dev-btms-history, Schedule_Validation] 
     if: ${{ needs.Schedule_Validation.outputs.status}}== 'true'
     # if: ${{ needs.Schedule_Validation.outputs.status}} == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Delay for 30 sec
         run: sleep 10
