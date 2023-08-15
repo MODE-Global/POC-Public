@@ -29,6 +29,7 @@ jobs:
      
 # jobs:
   dev-btms:
+    id: dev-btms
     needs: [Schedule_Validation]
     if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
@@ -40,6 +41,7 @@ jobs:
         #run: exit 1    
         
   dev-btms-history:
+    id: dev-btms-history
     needs: [Schedule_Validation]
     if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
