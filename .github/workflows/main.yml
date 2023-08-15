@@ -15,7 +15,7 @@ jobs:
       - name: Validate Scheduled Run
         id: check
         run: |
-          if [[ "$(date '+%m-%d')" == "08-15" ]]; then
+          if [[ "$(date '+%m-%d')" == "08-16" ]]; then
             echo "::set-output name=triggered::true"
           else
             echo "Skipping the Pipeline as it is not scheduled to run on this specified date"
