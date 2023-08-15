@@ -36,6 +36,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Job1 Testing
         run: echo "Job1 first"
+    outputs:
+      job_status: ${{ job.status }}
       #- name: Intentionally fail Job 1
         #run: exit 1    
         
@@ -48,6 +50,8 @@ jobs:
       #   run: echo "Job2 Second"
       - name: Intentionally fail Job 2
         run: exit 1
+    outputs:
+      job_status: ${{ job.status }}
 
   dev-tms:
     runs-on: ubuntu-latest
