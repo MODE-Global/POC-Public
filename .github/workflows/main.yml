@@ -56,7 +56,8 @@ jobs:
   dev-tms:
     runs-on: ubuntu-latest
     needs: [dev-btms, dev-btms-history]
-    if: needs.dev-btms.outputs.job_status != 'skipped' || needs.dev-btms-history.outputs.job_status != 'skipped'
+    if: ${{ needs.dev-btms.result || needs.dev-btms-history.result }}
+    # if: needs.dev-btms.outputs.job_status != 'skipped' || needs.dev-btms-history.outputs.job_status != 'skipped'
     steps:
       - name: Delay for 30 sec
         run: sleep 10
