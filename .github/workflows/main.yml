@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: cron
         run: |
-            if [[ "$(date '+%m-%d')" == "08-15" ]]; then
+            if [[ "$(date '+%m-%d')" == "08-5" ]]; then
                 echo "Triggering the Scheduled Pipeline"
             else
               echo "Skipping the Pipeline as it is not scheduled to run in this specified date"
@@ -59,7 +59,7 @@ jobs:
     if: needs.dev-btms.outputs.job_status != 'skipped' || needs.dev-btms-history.outputs.job_status != 'skipped'
     steps:
       - name: Delay for 30 sec
-        run: sleep 30
+        run: sleep 10
       - name: Job3 Testing
         run: echo "Job3 Third"
 
