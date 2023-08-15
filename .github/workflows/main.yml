@@ -56,8 +56,9 @@ jobs:
   dev-tms:
     runs-on: ubuntu-latest
     needs: [dev-btms, dev-btms-history]
-    if: ${{ needs.dev-btms.result == 'success' || needs.dev-btms.result == 'failure' ||
-            needs.dev-btms-history.result == 'success' || needs.dev-btms-history.result == 'failure' }}
+    if: ${{ needs.Schedule_Validation.outputs.status == 'true' &&
+            (needs.dev-btms.result == 'success' || needs.dev-btms.result == 'failure' ||
+             needs.dev-btms-history.result == 'success' || needs.dev-btms-history.result == 'failure') }}
     # if: ${{ needs.dev-btms.result || needs.dev-btms-history.result }}
     # if: needs.dev-btms.outputs.job_status != 'skipped' || needs.dev-btms-history.outputs.job_status != 'skipped'
     steps:
