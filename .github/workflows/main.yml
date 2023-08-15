@@ -29,6 +29,8 @@ jobs:
      
 # jobs:
   dev-btms:
+    needs: [Schedule_Validation]
+    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -38,6 +40,8 @@ jobs:
         #run: exit 1    
         
   dev-btms-history:
+    needs: [Schedule_Validation]
+    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
     steps:
       #- name: Job2 Testing
@@ -46,6 +50,8 @@ jobs:
         run: exit 1  
         
   dev-tms:
+    needs: [Schedule_Validation]
+    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
     needs: [dev-btms, dev-btms-history]
     if: always() # always run even if a previous step fails
@@ -58,6 +64,8 @@ jobs:
         #run: exit 1    
         
   dev-imaging:
+    needs: [Schedule_Validation]
+    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
     needs: [dev-btms, dev-btms-history]
     if: always() # always run even if a previous step fails
@@ -71,6 +79,8 @@ jobs:
         
         
   qc-btms:
+    needs: [Schedule_Validation]
+    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
     needs: [dev-tms, dev-imaging]
     if: always() # always run even if a previous step fails
@@ -84,6 +94,8 @@ jobs:
         
         
   qb-btms-history:
+    needs: [Schedule_Validation]
+    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
     needs: [dev-tms, dev-imaging]
     if: always() # always run even if a previous step fails
