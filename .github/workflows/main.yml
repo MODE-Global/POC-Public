@@ -47,17 +47,28 @@ jobs:
       # - name: Job2 Testing
       #   run: echo "Job2 Second"
       - name: Intentionally fail Job 2
-        run: exit 1  
-        
+        run: exit 1
+
   dev-tms:
     runs-on: ubuntu-latest
     needs: [dev-btms, dev-btms-history]
-    if: ${{ needs.dev-btms.outputs.status != 'skip' && needs.dev-btms-history.outputs.status != 'skip' }}
+    if: ${{ needs.dev-btms.outputs.status != 'skipped' && needs.dev-btms-history.outputs.status != 'skipped' }}
     steps:
       - name: Delay for 30 sec
-        run: sleep 60 # 900 seconds = 15 minutes
+        run: sleep 60
       - name: Job3 Testing
         run: echo "Job3 Third"
+
+        
+  # dev-tms:
+  #   runs-on: ubuntu-latest
+  #   needs: [dev-btms, dev-btms-history]
+  #   if: ${{ needs.dev-btms.outputs.status != 'skip' && needs.dev-btms-history.outputs.status != 'skip' }}
+  #   steps:
+  #     - name: Delay for 30 sec
+  #       run: sleep 60 # 900 seconds = 15 minutes
+  #     - name: Job3 Testing
+  #       run: echo "Job3 Third"
       #- name: Intentionally fail Job 3
         #run: exit 1    
         
