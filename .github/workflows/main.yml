@@ -50,8 +50,8 @@ jobs:
         run: exit 1  
         
   dev-tms:
-    needs: [Schedule_Validation, dev-btms, dev-btms-history]
-    if: always() ||  ${{ needs.Schedule_Validation.outputs.status }}== 'true'
+    needs: [Schedule_Validation]
+    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     #if: ${{ needs.Schedule_Validation.outputs.status }}== 'true' 
     runs-on: ubuntu-latest
     #needs: [dev-btms, dev-btms-history]
