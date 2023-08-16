@@ -34,12 +34,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      # - name: Job1 Testing
-      #   run: echo "Job1 first"
-    # outputs:
-    #   job_status: ${{ job.status }}
-      - name: Intentionally fail Job 1
-        run: exit 1    
+      - name: Job1 Testing
+        run: echo "Job1 first"
+    # # outputs:
+    # #   job_status: ${{ job.status }}
+    #   - name: Intentionally fail Job 1
+    #     run: exit 1    
         
   dev-btms-history:
     needs: [Schedule_Validation]
