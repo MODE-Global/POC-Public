@@ -1,9 +1,9 @@
 name: Database Sync - biweekly
 on:
   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually,
-  schedule:
-     # - cron: '*/6 * * * *'
-     # - cron: '*/10 * * * *'
+  # schedule:
+  #    - cron: '*/6 * * * *'
+  #    - cron: '*/10 * * * *'
 
 jobs:
   Schedule_Validation:
@@ -53,16 +53,15 @@ jobs:
     outputs:
       job_status: ${{ job.status }}
 
-  # dev-tms:
-  #   needs: [dev-btms, dev-btms-history, Schedule_Validation] 
-  #   if: ${{ needs.Schedule_Validation.outputs.status}}== 'true'
-  #   # if: ${{ needs.Schedule_Validation.outputs.status}} == 'true'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Delay for 30 sec
-  #       run: sleep 10
-  #     - name: Job3 Testing
-  #       run: echo "Job3 Third"
+  dev-tms:
+    needs: [dev-btms, dev-btms-history, Schedule_Validation] 
+    if: ${{ needs.Schedule_Validation.outputs.status}}== 'true' && always ()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delay for 30 sec
+        run: sleep 10
+      - name: Job3 Testing
+        run: echo "Job3 Third"
 
         
   # dev-tms:
