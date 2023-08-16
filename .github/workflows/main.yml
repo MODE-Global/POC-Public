@@ -30,7 +30,6 @@ jobs:
           echo "Running Step 1"
           sleep 10
           echo "Running Step 2"
-          # sleep 60
           echo "Running Step 3" 
 #   Schedule_Validation:
 #     runs-on: ubuntu-latest
