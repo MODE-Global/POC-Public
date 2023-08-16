@@ -56,7 +56,7 @@ jobs:
   dev-tms:
     needs: [dev-btms, dev-btms-history, Schedule_Validation]
     if: |
-      needs.Schedule_Validation.outputs.status == 'true' &&
+      ${{ needs.Schedule_Validation.outputs.status }} == 'true' &&
       (needs.dev-btms.outputs.job_status == 'true' || needs.dev-btms-history.outputs.job_status == 'true')
     # if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
     runs-on: ubuntu-latest
