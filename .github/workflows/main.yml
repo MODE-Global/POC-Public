@@ -27,9 +27,9 @@ jobs:
       - name: Run Steps in Parallel
         run: |
           echo "Running Step 1"
-          sleep 900
+          sleep 10
           echo "Running Step 2"
-          sleep 900
+          sleep 30
           echo "Running Step 3" 
 #   Schedule_Validation:
 #     runs-on: ubuntu-latest
