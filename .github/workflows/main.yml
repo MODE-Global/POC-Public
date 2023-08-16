@@ -6,31 +6,61 @@ on:
   #    - cron: '*/10 * * * *'
 
 jobs:
-  parallel_steps:
+  dev-btms:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: 14
-          
-      # - name: Delay for 15 mins
-      #   run: sleep 900 
+    - run: echo "Sequential step"
+
+    - parallel: 
+        branch_id_1:
+          steps:
+            - run: echo "branch 1 sequential step 1"
+            - run: echo "branch 1 sequential step 2"
+
+        # Executes steps in parallel to branch1
+        branch_id_2:
+          steps:
+            - run: echo "branch 2 sequential step 1"
+            - run: echo "branch 2 sequential step 2"
+
+    - run: echo "More sequential steps after the whole parallel part is done."
+
+    
+    
+    # steps:
+    #   - parallel: 
+    #     branch_id_1:
+    #       steps:
+    #         - run: echo "branch 1 sequential step 1"
+    #         - run: echo "branch 1 sequential step 2"
+    #   - name: Checkout
+    #     parallel: true
+    #     uses: actions/checkout@v3
         
-      - name: Job1 Testing
-        run: echo "Job1 first"
+    #   - name: Checkout code
+    #     parallel: true
+    #     uses: actions/checkout@v2
 
-      - name: Run Steps in Parallel
-        run: |
-          sleep 10
-          echo "Running Step 1"
-          sleep 10
-          echo "Running Step 2"
-          echo "Running Step 3" 
+    #   - name: Set up Node.js
+    #     uses: actions/setup-node@v2
+    #     with:
+    #       node-version: 14
+          
+    #   # - name: Delay for 15 mins
+    #   #   run: sleep 900 
+        
+    #   - name: Job1 Testing
+    #     run: echo "Job1 first"
+
+    #   - name: Run Steps in Parallel
+    #     run: |
+    #       sleep 10
+    #       echo "Running Step 1"
+    #       sleep 10
+    #       echo "Running Step 2"
+    #       echo "Running Step 3" 
 #   Schedule_Validation:
 #     runs-on: ubuntu-latest
 #     outputs:
