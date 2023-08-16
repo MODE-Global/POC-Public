@@ -55,7 +55,7 @@ jobs:
 
   dev-tms:
     needs: [dev-btms, dev-btms-history, Schedule_Validation] 
-    if: ${{ needs.Schedule_Validation.outputs.status}}== 'true' && always
+    if: always ()
     runs-on: ubuntu-latest
     steps:
       - name: Delay for 30 sec
