@@ -17,6 +17,12 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: 14
+          
+      - name: Delay for 15 mins
+        run: sleep 900 
+        
+      - name: Job1 Testing
+        run: echo "Job1 first"
 
       - name: Run Steps in Parallel
         run: |
