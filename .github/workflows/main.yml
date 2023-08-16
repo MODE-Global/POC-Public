@@ -6,61 +6,78 @@ on:
   #    - cron: '*/10 * * * *'
 
 jobs:
-  Schedule_Validation:
+  parallel_steps:
     runs-on: ubuntu-latest
-    outputs:
-      status: ${{ steps.check.outputs.triggered }}
+
     steps:
-      - name: cron
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14
+
+      - name: Run Steps in Parallel
         run: |
-            if [[ "$(date '+%m-%d')" == "08-16" ]]; then
-                echo "Triggering the Scheduled Pipeline"
-            else
-              echo "Skipping the Pipeline as it is not scheduled to run in this specified date"
-              exit 1           
-            fi
-# name: Database Sync - Tuesday
+          echo "Running Step 1"
+          echo "Running Step 2"
+          echo "Running Step 3" 
+#   Schedule_Validation:
+#     runs-on: ubuntu-latest
+#     outputs:
+#       status: ${{ steps.check.outputs.triggered }}
+#     steps:
+#       - name: cron
+#         run: |
+#             if [[ "$(date '+%m-%d')" == "08-16" ]]; then
+#                 echo "Triggering the Scheduled Pipeline"
+#             else
+#               echo "Skipping the Pipeline as it is not scheduled to run in this specified date"
+#               exit 1           
+#             fi
+# # name: Database Sync - Tuesday
 
-# on:
-#   workflow_dispatch:
-#   #schedule:
-#     #- cron: '*/2 * * * *'
+# # on:
+# #   workflow_dispatch:
+# #   #schedule:
+# #     #- cron: '*/2 * * * *'
      
-# jobs:
-  dev-btms:
-    needs: [Schedule_Validation]
-    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Job1 Testing
-        run: echo "Job1 first"
-    outputs:
-      job_status: ${{ job.status }}
-    #   - name: Intentionally fail Job 1
-    #     run: exit 1    
+# # jobs:
+#   dev-btms:
+#     needs: [Schedule_Validation]
+#     if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v3
+#       - name: Job1 Testing
+#         run: echo "Job1 first"
+#     outputs:
+#       job_status: ${{ job.status }}
+#     #   - name: Intentionally fail Job 1
+#     #     run: exit 1    
         
-  dev-btms-history:
-    needs: [Schedule_Validation]
-    if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
-    runs-on: ubuntu-latest
-    steps:
-      # - name: Job2 Testing
-      #   run: echo "Job2 Second"
-      - name: Intentionally fail Job 2
-        run: exit 1
-    outputs:
-      job_status: ${{ job.status }}
+#   dev-btms-history:
+#     needs: [Schedule_Validation]
+#     if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       # - name: Job2 Testing
+#       #   run: echo "Job2 Second"
+#       - name: Intentionally fail Job 2
+#         run: exit 1
+#     outputs:
+#       job_status: ${{ job.status }}
 
-  dev-tms:
-    needs: [dev-btms, dev-btms-history, Schedule_Validation]
-    if: always() && ${{ needs.Schedule_Validation.outputs.status }}== 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delay for 30 sec
-        run: sleep 10
-      - name: Job3 Testing
-        run: echo "Job3 Third"
+#   dev-tms:
+#     needs: [dev-btms, dev-btms-history, Schedule_Validation]
+#     if: always() && ${{ needs.Schedule_Validation.outputs.status }}== 'true'
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Delay for 30 sec
+#         run: sleep 10
+#       - name: Job3 Testing
+#         run: echo "Job3 Third"
 
         
   # dev-tms:
