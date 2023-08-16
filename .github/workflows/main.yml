@@ -18,8 +18,8 @@ jobs:
         with:
           node-version: 14
           
-      - name: Delay for 15 mins
-        run: sleep 900 
+      # - name: Delay for 15 mins
+      #   run: sleep 900 
         
       - name: Job1 Testing
         run: echo "Job1 first"
