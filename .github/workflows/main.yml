@@ -12,15 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Intentionally fail Job 2
-        run: exit 1
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: 14
-          
-      # - name: Delay for 15 mins
-      #   run: sleep 900 
-        
+        run: exit 1        
       - name: Job1 Testing
         run: echo "Job1 first"
 
