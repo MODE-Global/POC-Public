@@ -30,6 +30,7 @@ jobs:
   dev-btms:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
       - name: cron validation
         run: sh ./cron.sh
           # chmod +x cron.sh
