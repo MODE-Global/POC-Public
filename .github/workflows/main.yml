@@ -6,53 +6,23 @@ on:
   #    - cron: '*/10 * * * *'
 
 jobs:
-  dev-btms:
+  New:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-
-    - run: echo "Sequential step"
-
-    - parallel: 
-        branch_id_1:
-          steps:
-            - run: echo "branch 1 sequential step 1"
-            - run: echo "branch 1 sequential step 2"
-
-        # Executes steps in parallel to branch1
-        branch_id_2:
-          steps:
-            - run: echo "branch 2 sequential step 1"
-            - run: echo "branch 2 sequential step 2"
-
-    - run: echo "More sequential steps after the whole parallel part is done."
-
-    
-    
-    # steps:
-    #   - parallel: 
-    #     branch_id_1:
-    #       steps:
-    #         - run: echo "branch 1 sequential step 1"
-    #         - run: echo "branch 1 sequential step 2"
-    #   - name: Checkout
-    #     parallel: true
-    #     uses: actions/checkout@v3
-        
-    #   - name: Checkout code
-    #     parallel: true
-    #     uses: actions/checkout@v2
-
-    #   - name: Set up Node.js
-    #     uses: actions/setup-node@v2
-    #     with:
-    #       node-version: 14
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Intentionally fail Job 2
+        run: exit 1
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14
           
-    #   # - name: Delay for 15 mins
-    #   #   run: sleep 900 
+      # - name: Delay for 15 mins
+      #   run: sleep 900 
         
-    #   - name: Job1 Testing
-    #     run: echo "Job1 first"
+      - name: Job1 Testing
+        run: echo "Job1 first"
 
     #   - name: Run Steps in Parallel
     #     run: |
