@@ -1,4 +1,4 @@
-name: Database Sync - biweekly
+name: biweekly sync POC
 on:
   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually,
   # schedule:
