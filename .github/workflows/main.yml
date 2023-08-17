@@ -31,9 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: cron validation
-        run: ./cron.sh
-          # chmod +x cron.sh
-          # ./cron.sh
+        run: |
+          chmod +x cron.sh
+          ./cron.sh
       # - uses: ./.github/workflows/checking.yml
       - uses: actions/checkout@v3
       - name: Job1 Testing
