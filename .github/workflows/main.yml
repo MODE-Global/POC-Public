@@ -15,14 +15,13 @@ jobs:
         run: echo "Job1 first"
       - name: Intentionally fail Job 2
         run: exit 1        
-
-    #   - name: Run Steps in Parallel
-    #     run: |
-    #       sleep 10
-    #       echo "Running Step 1"
-    #       sleep 10
-    #       echo "Running Step 2"
-    #       echo "Running Step 3" 
+      - name: Run Steps in Parallel
+        run: |
+          sleep 10
+          exit 1
+          sleep 10
+          echo "Running Step 2"
+          echo "Running Step 3" 
 #   Schedule_Validation:
 #     runs-on: ubuntu-latest
 #     outputs:
