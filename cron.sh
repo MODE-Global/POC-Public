@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 if [[ "$(date '+%m-%d')" == "08-18" ]]; then
     echo "Triggering the Scheduled Pipeline"
