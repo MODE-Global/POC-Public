@@ -12,8 +12,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
- 
-
       - name: Get Latest Build Number
         id: latest_build
         run: |
@@ -21,31 +19,18 @@ jobs:
           BRANCH_NAME=develop
           WORKFLOW_NAME="Stage DB Refresh - POC"
 
- 
+          LATEST_BUILD=$(curl -s -H "Authorization: token $TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_NAME/runs?branch=$BRANCH_NAME" \
+            | jq -r '.workflow_runs | first | .run_number')
 
-      #     LATEST_BUILD=$(curl -s -H "Authorization: token $TOKEN" \
-      #       "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW_NAME/runs?branch=$BRANCH_NAME" \
-      #       | jq -r '.workflow_runs | first | .run_number')
-
- 
-
-      #     echo "Latest build number for branch $BRANCH_NAME: $LATEST_BUILD"
-      #     echo "::set-output name=latest_build::$LATEST_BUILD"
-
-        
-
-      # - name: Use Latest Build Number
-      #   run: echo "Latest build number is ${{ steps.latest_build.outputs.latest_build }}"
-
-
-
+          echo "Latest build number for branch $BRANCH_NAME: $LATEST_BUILD"
+          echo "::set-output name=latest_build::$LATEST_BUILD"
 
       - name: Check Pipeline Status
         run: |
           LATEST_BUILD_STATUS=$(curl -s -H "Authorization: token $TOKEN" \
             "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$LATEST_BUILD" \
             | jq -r '.conclusion')
-
           if [ "$LATEST_BUILD_STATUS" = "success" ]; then
             echo "Latest build was successful."
             # Perform additional actions for a successful build.
