@@ -32,5 +32,24 @@ jobs:
           echo "Latest build number for branch $BRANCH_NAME: $LATEST_BUILD"
           echo "::set-output name=latest_build::$LATEST_BUILD"
 
+        
+
       - name: Use Latest Build Number
         run: echo "Latest build number is ${{ steps.latest_build.outputs.latest_build }}"
+
+
+
+
+      - name: Check Pipeline Status
+        run: |
+          LATEST_BUILD_STATUS=$(curl -s -H "Authorization: token $TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$LATEST_BUILD" \
+            | jq -r '.conclusion')
+
+          if [ "$LATEST_BUILD_STATUS" = "success" ]; then
+            echo "Latest build was successful."
+            # Perform additional actions for a successful build.
+          else
+            echo "Latest build failed or had other status: $LATEST_BUILD_STATUS."
+            # Perform additional actions for a failed build or other statuses.
+          fi
