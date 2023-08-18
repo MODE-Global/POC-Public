@@ -14,9 +14,3 @@ jobs:
 
       - name: Pipeline Trigger
         run: echo "first step"
-        
-#       - uses: convictional/trigger-workflow-and-wait@v1.3.0
-#         with:
-#           owner: MODE-POC
-#           repo: Code-security
-#           github_token: ${{ secrets.ACCESS_TOKEN }}
