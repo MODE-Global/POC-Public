@@ -1,23 +1,121 @@
-name: checkingtype
+name: Database Sync - qc-imaging
 on:
-  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually 
+  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually
   
   workflow_call:
     secrets:
       AWS_ACCESS_KEY_ID: 
         required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      MS_DEVOPS_TEAMS_WEBHOOK_URI:
+        required: true
+      DEVOPS_SSH_PRIVATE_KEY:
+        required: true
+      BASTION_KNOWN_HOSTS:
+        required: true
 jobs:
-
-  snapshot:
+  qc-imaging:
     runs-on: ubuntu-latest
-    steps:
+    steps:  
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.BASTION_KNOWN_HOSTS }}
+          if_key_exists: replace
+
       - name: Configure AWS credentials
         uses: Fooji/create-aws-profile-action@v1
         with:
+          profile: sunteck
           region: us-east-1
           key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          # secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-      - name: Pipeline Trigger
-        run: echo "first step"
+      - name: Bootstrap
+        working-directory: ./_devops/db_sync
+        run: make bootstrap files
+
+      - name: qc-imaging
+        working-directory: ./_devops/db_sync
+        run: ./sync_rds.py --skip-ask --env_target qc --app_name imaging 
+  
+      - name: Team Notify of Success
+        uses: mikesprague/teams-incoming-webhook-action@v1
+        with:
+         github-token: ${{ github.token }}
+         webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+         deploy-card: true
+         title: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): QC-Imaging DB biweekly sync success"
+         color: 'success'
+      - name: Team Notify of Failure
+        if: ${{ failure() }}
+        uses: mikesprague/teams-incoming-webhook-action@v1
+        with:
+         github-token: ${{ github.token }}
+         webhook-url: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+         deploy-card: true
+         title: "BTMS deployment to ${{ inputs.app_env }} (${{ github.actor }}): QC-Imaging DB biweekly sync failed:"
+         color: 'failure'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# name: checkingtype
+# on:
+#   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually 
+  
+#   workflow_call:
+#     secrets:
+#       AWS_ACCESS_KEY_ID: 
+#         required: true
+# jobs:
+
+#   snapshot:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Configure AWS credentials
+#         uses: Fooji/create-aws-profile-action@v1
+#         with:
+#           region: us-east-1
+#           key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           # secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#       - uses: actions/checkout@v3
+
+#       - name: Pipeline Trigger
+#         run: echo "first step"
