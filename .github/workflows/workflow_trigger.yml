@@ -1,6 +1,5 @@
 name: Find Latest Build Number
 on:
-  workflow_dispatch:
   workflow_run:
     workflows: ["Stage DB Refresh - POC"]
     types:
