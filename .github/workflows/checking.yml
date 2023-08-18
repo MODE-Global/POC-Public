@@ -3,7 +3,9 @@ on:
   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually 
   
   workflow_call:
-
+    secrets:
+      AWS_ACCESS_KEY_ID: 
+        required: true
 jobs:
 
   snapshot:
