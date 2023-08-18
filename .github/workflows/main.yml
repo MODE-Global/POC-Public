@@ -1,4 +1,4 @@
-name: Stage DB Refresh - POC
+name: Stage
 on:
   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually,
   schedule:
