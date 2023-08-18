@@ -11,6 +11,13 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     steps:
+      - name: Configure AWS credentials
+        uses: Fooji/create-aws-profile-action@v1
+        with:
+          region: us-east-1
+          key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          # secret: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - uses: actions/checkout@v3
 
       - name: Pipeline Trigger
         run: echo "first step"
