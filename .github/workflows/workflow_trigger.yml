@@ -1,7 +1,7 @@
 name: Find Latest Build Number
 on:
   workflow_run:
-    workflows: ["Stage DB Refresh - POC"]
+    workflows: ["Stage"]
     types:
       - completed
 
@@ -44,7 +44,7 @@ jobs:
           GITHUB_TOKEN: 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
           REPO_OWNER: ulageswaris
           REPO_NAME: POC-Public
-          WORKFLOW_NAME: Stage DB Refresh - POC
+          WORKFLOW_NAME: Stage
         run: |
           PREVIOUS_RUN_STATUS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/actions/workflows/$WORKFLOW_NAME/runs?per_page=1" | \
