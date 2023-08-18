@@ -6,6 +6,15 @@ on:
      - cron: '*/10 * * * *'
 
 jobs:
+  Run_qc_imaging_pipeline:
+    uses: ./.github/workflows/checking.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+      MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+      BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
+      
   dev-btms:
     runs-on: ubuntu-latest
     steps:
