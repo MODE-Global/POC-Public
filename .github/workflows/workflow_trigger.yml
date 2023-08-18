@@ -18,7 +18,7 @@ jobs:
         id: latest_build
         run: |
           TOKEN=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
-          BRANCH_NAME=develop
+          BRANCH_NAME="develop"
           WORKFLOW_NAME="Stage DB Refresh - POC"
 
  
