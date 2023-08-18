@@ -6,49 +6,49 @@ on:
      - cron: '*/10 * * * *'
 
 jobs:
-  Run_qc_imaging_pipeline:
-    uses: ./.github/workflows/checking.yml
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-      MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-      BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
+  # Run_qc_imaging_pipeline:
+  #   uses: ./.github/workflows/checking.yml
+  #   secrets:
+  #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #     DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+  #     MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+  #     BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
       
-  dev-btms:
-    runs-on: ubuntu-latest
-    steps:
+  # dev-btms:
+  #   runs-on: ubuntu-latest
+  #   steps:
     
-      - uses: actions/checkout@v3
+  #     - uses: actions/checkout@v3
       
-      - name: cron validation
-        run: |
-          chmod +x cron.sh
-          ./cron.sh
+  #     - name: cron validation
+  #       run: |
+  #         chmod +x cron.sh
+  #         ./cron.sh
           
-      - uses: ./.github/workflows/checking.yml
-        with:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #     - uses: ./.github/workflows/checking.yml
+  #       with:
+  #         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       
-  dev-btms-history:
-    runs-on: ubuntu-latest
-    steps:
+  # dev-btms-history:
+  #   runs-on: ubuntu-latest
+  #   steps:
     
-      - uses: actions/checkout@v3
+  #     - uses: actions/checkout@v3
       
-      - name: cron validation
-        run: |
-          chmod +x cron.sh
-          ./cron.sh
+  #     - name: cron validation
+  #       run: |
+  #         chmod +x cron.sh
+  #         ./cron.sh
           
-      # - name: Job2 Testing
-      #   run: echo "Job2 Second"
-      - name: Intentionally fail Job 2
-        run: exit 1
+  #     # - name: Job2 Testing
+  #     #   run: echo "Job2 Second"
+  #     - name: Intentionally fail Job 2
+  #       run: exit 1
       
   dev-tms:
-    needs: [dev-btms, dev-btms-history] 
-    if: always ()
+    # needs: [dev-btms, dev-btms-history] 
+    # if: always ()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -64,24 +64,24 @@ jobs:
       - name: Job3 Testing
         run: echo "Job3 Third"
         
-  dev-imaging:
-    needs: [dev-btms, dev-btms-history]
-    if: always ()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+  # dev-imaging:
+  #   needs: [dev-btms, dev-btms-history]
+  #   if: always ()
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
       
-      - name: cron validation
-        run: |
-          chmod +x cron.sh
-          ./cron.sh
+  #     - name: cron validation
+  #       run: |
+  #         chmod +x cron.sh
+  #         ./cron.sh
           
-      - name: Delay for 30 sec
-        run: sleep 10
-      # - name: Job4 Testing
-      #   run: echo "Job4 Third" 
-      - name: Intentionally fail Job 4
-        run: exit 1    
+  #     - name: Delay for 30 sec
+  #       run: sleep 10
+  #     # - name: Job4 Testing
+  #     #   run: echo "Job4 Third" 
+  #     - name: Intentionally fail Job 4
+  #       run: exit 1    
         
         
   # qc-btms:
