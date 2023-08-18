@@ -19,7 +19,7 @@ jobs:
           
       - uses: ./.github/workflows/checking.yml
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID })
       
   dev-btms-history:
     runs-on: ubuntu-latest
