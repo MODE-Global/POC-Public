@@ -29,7 +29,7 @@ jobs:
     if: always()
     steps:
       - name: Delay for 15 mins
-        run: sleep 900
+        run: sleep 30
       - name: uses
         uses: ./.github/workflows/checking.yml
         with:
