@@ -1,7 +1,7 @@
 name: Stage
 on:
   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually,
-  schedule:
+  #schedule:
      #- cron: '0 16 21 8 *'
 jobs:
 
