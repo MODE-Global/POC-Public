@@ -1,113 +1,40 @@
-# name: Stage
-# on:
-#   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually,
-#   schedule:
-#      - cron: '*/6 * * * *'
-#      - cron: '*/10 * * * *'
+name: Stage
+on:
+  workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually,
+  schedule:
+     #- cron: '0 16 21 8 *'
+jobs:
 
-# jobs:      
-#   dev-btms:
-#     runs-on: ubuntu-latest
-#     steps:
-    
-#       - uses: actions/checkout@v3
-      
-#       - name: cron validation
-#         run: |
-#           chmod +x cron.sh
-#           ./cron.sh
-          
-#       - uses: ./.github/workflows/checking.yml
-#         with:
-#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      
-#   dev-btms-history:
-#     runs-on: ubuntu-latest
-#     steps:
-    
-#       - uses: actions/checkout@v3
-      
-#       - name: cron validation
-#         run: |
-#           chmod +x cron.sh
-#           ./cron.sh
-          
-#       # - name: Job2 Testing
-#       #   run: echo "Job2 Second"
-#       # - name: Intentionally fail Job 2
-#       #   run: exit 1
+ Run_qc_imaging_pipeline:
+    uses: ./.github/workflows/checking.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+      MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+      BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
 
-#       - uses: ./.github/workflows/checking.yml
-#         with:
-#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      
-#   dev-tms:
-#     needs: [dev-btms, dev-btms-history] 
-#     if: always ()
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v3
-      
-#       - name: cron validation
-#         run: |
-#           chmod +x cron.sh
-#           ./cron.sh
-      
-#       - name: Delay for 30 sec
-#         run: sleep 10
+ Run_qc_tms_pipeline:
+    uses: ./.github/workflows/checking.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+      MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+      BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
 
-#       - uses: ./.github/workflows/checking.yml
-#         with:
-#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        
-#       # - name: Job3 Testing
-#       #   run: echo "Job3 Third"
-        
-#   # dev-imaging:
-#   #   needs: [dev-btms, dev-btms-history]
-#   #   if: always ()
-#   #   runs-on: ubuntu-latest
-#   #   steps:
-#   #     - uses: actions/checkout@v3
-      
-#   #     - name: cron validation
-#   #       run: |
-#   #         chmod +x cron.sh
-#   #         ./cron.sh
-          
-#   #     - name: Delay for 30 sec
-#   #       run: sleep 10
-#   #     # - name: Job4 Testing
-#   #     #   run: echo "Job4 Third" 
-#   #     - name: Intentionally fail Job 4
-#   #       run: exit 1    
-        
-        
-#   # qc-btms:
-#   #   needs: [Schedule_Validation]
-#   #   if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
-#   #   runs-on: ubuntu-latest
-#   #   needs: [dev-tms, dev-imaging]
-#   #   if: always() # always run even if a previous step fails
-#   #   steps:
-#   #     - name: Delay for 30 sec
-#   #       run: sleep 10 # 900 seconds = 15 minutes
-#   #     - name: Job5 Testing
-#   #       run: echo "Job5 Third"
-#   #     - name: Intentionally fail Job 4
-#   #       run: exit 1  
-        
-        
-#   # qb-btms-history:
-#   #   needs: [Schedule_Validation]
-#   #   if: ${{ needs.Schedule_Validation.outputs.status }}== 'true'
-#   #   runs-on: ubuntu-latest
-#   #   needs: [dev-tms, dev-imaging]
-#   #   if: always() # always run even if a previous step fails
-#   #   steps:
-#   #     - name: Delay for 30 sec
-#   #       run: sleep 10 # 900 seconds = 15 minutes
-#   #     - name: Job6 Testing
-#   #      run: echo "Job6 Third"
-#       #- name: Intentionally fail Job 4
-#         #run: exit 1  
+ Run_staging_btms_pipeline:
+    runs-on: ubuntu-latest
+    needs: [Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+    if: always()
+    steps:
+      - name: Delay for 15 mins
+        run: sleep 900
+      - name: uses
+        uses: ./.github/workflows/checking.yml
+        with:
+           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+           DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+           MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+           BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
