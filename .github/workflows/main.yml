@@ -25,6 +25,8 @@ jobs:
 
  Sleep:
     runs-on: ubuntu-latest
+    needs: [Sleep1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+    if: always ()
     steps:
       - name: cron
         run: sleep 30  
@@ -42,6 +44,8 @@ jobs:
 
  Sleep1:
     runs-on: ubuntu-latest
+    needs: [Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+    if: always ()
     steps:
       - name: cron
         run: sleep 30  
@@ -60,6 +64,7 @@ jobs:
  Sleep2:
    runs-on: ubuntu-latest
    needs: [ Run_staging_btms_pipeline,  Run_staging_btms_history_pipeline]
+   if: always ()
    steps:
      - name: cron
        run: sleep 30  
@@ -78,6 +83,7 @@ jobs:
  Sleep3:
     runs-on: ubuntu-latest
     needs: [ Run_staging_btms_pipeline,  Run_staging_btms_history_pipeline]
+    if: always ()
     steps:
       - name: cron
         run: sleep 30  
