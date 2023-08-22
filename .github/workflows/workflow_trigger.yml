@@ -1,4 +1,5 @@
-name: Database Sync - biweekly
+name: Stage DB Sync
+
 on:
   workflow_dispatch:
   schedule:
