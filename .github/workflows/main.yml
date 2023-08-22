@@ -2,7 +2,7 @@ name: Stage
 on:
   workflow_dispatch: # adding the workflow_dispatch so it can be triggered manually,
   schedule:
-     - cron: '0 1 22 8 *'
+     - cron: '0 5 23 8 *'
 jobs:
 
  Run_qc_imaging_pipeline:
