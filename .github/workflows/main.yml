@@ -4,7 +4,6 @@ on:
   schedule:
      - cron: '0 5 23 8 *'
 jobs:
-#
  Run_qc_imaging_pipeline:
     uses: ./.github/workflows/checking.yml
     secrets:
@@ -23,7 +22,7 @@ jobs:
       MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
       BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
 
- Sleep:
+ Sleep1:
     runs-on: ubuntu-latest
     needs: [Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
     if: always ()
@@ -32,7 +31,7 @@ jobs:
         run: sleep 15
 
  Run_staging_btms_pipeline:
-    needs: [Sleep,Run_qc_imaging_pipeline,Run_qc_tms_pipeline]
+    needs: [Sleep1,Run_qc_imaging_pipeline,Run_qc_tms_pipeline]
     if: always ()
     uses: ./.github/workflows/checking.yml
     secrets:
@@ -42,17 +41,8 @@ jobs:
       MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
       BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
 
- # Sleep1:
- #    runs-on: ubuntu-latest
- #    needs: [Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
- #    if: always ()
- #    steps:
- #      - name: cron
- #        run: sleep 15
-
  Run_staging_btms_history_pipeline:
-    needs: [Sleep, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
-    #needs: [Sleep1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+    needs: [Sleep1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
     if: always ()
     uses: ./.github/workflows/checking.yml
     secrets:
@@ -81,16 +71,8 @@ jobs:
       MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
       BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
 
- Sleep3:
-    runs-on: ubuntu-latest
-    needs: [ Run_staging_btms_pipeline,  Run_staging_btms_history_pipeline]
-    if: always ()
-    steps:
-      - name: cron
-        run: sleep 15
-
  Run_staging_tms_pipeline:
-    needs: [Sleep3,  Run_staging_btms_pipeline,  Run_staging_btms_history_pipeline]
+    needs: [Sleep2,  Run_staging_btms_pipeline,  Run_staging_btms_history_pipeline]
     if: always ()
     uses: ./.github/workflows/checking.yml
     secrets:
