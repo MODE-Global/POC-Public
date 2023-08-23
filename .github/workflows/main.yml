@@ -29,7 +29,7 @@ jobs:
     if: always ()
     steps:
       - name: cron
-        run: sleep 60
+        run: sleep 15
 
  Run_staging_btms_pipeline:
     needs: [Sleep,Run_qc_imaging_pipeline,Run_qc_tms_pipeline]
@@ -48,7 +48,7 @@ jobs:
     if: always ()
     steps:
       - name: cron
-        run: sleep 60
+        run: sleep 15
 
  Run_staging_btms_history_pipeline:
     needs: [Sleep1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
@@ -67,7 +67,7 @@ jobs:
    if: always ()
    steps:
      - name: cron
-       run: sleep 60
+       run: sleep 15
         
  Run_staging_imaging_pipeline:
     needs: [Sleep2,  Run_staging_btms_pipeline,  Run_staging_btms_history_pipeline]
@@ -86,7 +86,7 @@ jobs:
     if: always ()
     steps:
       - name: cron
-        run: sleep 60
+        run: sleep 15
 
  Run_staging_tms_pipeline:
     needs: [Sleep3,  Run_staging_btms_pipeline,  Run_staging_btms_history_pipeline]
