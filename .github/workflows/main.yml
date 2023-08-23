@@ -42,16 +42,17 @@ jobs:
       MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
       BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
 
- Sleep1:
-    runs-on: ubuntu-latest
-    needs: [Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
-    if: always ()
-    steps:
-      - name: cron
-        run: sleep 15
+ # Sleep1:
+ #    runs-on: ubuntu-latest
+ #    needs: [Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+ #    if: always ()
+ #    steps:
+ #      - name: cron
+ #        run: sleep 15
 
  Run_staging_btms_history_pipeline:
-    needs: [Sleep1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+    needs: [Sleep, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+    #needs: [Sleep1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
     if: always ()
     uses: ./.github/workflows/checking.yml
     secrets:
