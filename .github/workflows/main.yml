@@ -10,7 +10,35 @@ on:
      - cron: '0 5 12 11 *'
 
 jobs:
-  Run_qc_imaging_pipeline:
+  # Run_qc_imaging_pipeline:
+  #   uses: ./.github/workflows/db_sync_qc-imaging.yml
+  #   secrets:
+  #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #     DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+  #     MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+  #     BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
+      
+  # Run_qc_tms_pipeline:
+  #   uses: ./.github/workflows/db_sync_qc-tms.yml
+  #   secrets:
+  #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #     DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
+  #     MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
+  #     BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
+
+  # Throttling_update_1:
+  #   runs-on: ubuntu-latest
+  #   needs: [Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+  #   if: always ()
+  #   steps:
+  #     - name: Delay for 15 mins
+  #       run: sleep 900   
+      
+  Run_staging_btms_pipeline:
+    # needs: [Throttling_update_1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+    # if: always ()
     uses: ./.github/workflows/checking.yml
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -18,8 +46,10 @@ jobs:
       DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
       MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
       BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
-      
-  Run_qc_tms_pipeline:
+
+  Run_staging_btms_history_pipeline:
+    # needs: [Throttling_update_1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
+    # if: always ()
     uses: ./.github/workflows/checking.yml
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -30,44 +60,14 @@ jobs:
 
   Throttling_update_1:
     runs-on: ubuntu-latest
-    needs: [Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
-    if: always ()
-    steps:
-      - name: Delay for 15 mins
-        run: sleep 15  
-      
-  Run_staging_btms_pipeline:
-    needs: [Throttling_update_1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
-    if: always ()
-    uses: ./.github/workflows/checking.yml
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-      MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-      BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
-
-  Run_staging_btms_history_pipeline:
-    needs: [Throttling_update_1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
-    if: always ()
-    uses: ./.github/workflows/checking.yml
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      DEVOPS_SSH_PRIVATE_KEY: ${{ secrets.DEVOPS_SSH_PRIVATE_KEY }}
-      MS_DEVOPS_TEAMS_WEBHOOK_URI: ${{ secrets.MS_DEVOPS_TEAMS_WEBHOOK_URI }}
-      BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}
-
-  Throttling_update_2:
-    runs-on: ubuntu-latest
     needs: [Run_staging_btms_pipeline, Run_staging_btms_history_pipeline]
     if: always ()
     steps:
       - name: Delay for 15 mins
-        run: sleep 15   
+        run: sleep 900     
       
   Run_staging_imaging_pipeline:
-    needs: [Throttling_update_2, Run_staging_btms_pipeline, Run_staging_btms_history_pipeline]
+    needs: [Throttling_update_1, Run_staging_btms_pipeline, Run_staging_btms_history_pipeline]
     if: always ()
     uses: ./.github/workflows/checking.yml
     secrets:
@@ -78,7 +78,7 @@ jobs:
       BASTION_KNOWN_HOSTS: ${{ secrets.BASTION_KNOWN_HOSTS }}      
       
   Run_staging_tms_pipeline:
-    needs: [Throttling_update_2, Run_staging_btms_pipeline, Run_staging_btms_history_pipeline]
+    needs: [Throttling_update_1, Run_staging_btms_pipeline, Run_staging_btms_history_pipeline]
     if: always ()
     uses: ./.github/workflows/checking.yml
     secrets:
