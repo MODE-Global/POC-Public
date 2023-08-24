@@ -34,7 +34,7 @@ jobs:
   #   if: always ()
   #   steps:
   #     - name: Delay for 15 mins
-  #       run: sleep 900   
+  #       run: sleep 10   
       
   Run_staging_btms_pipeline:
     # needs: [Throttling_update_1, Run_qc_imaging_pipeline, Run_qc_tms_pipeline]
@@ -64,7 +64,7 @@ jobs:
     if: always ()
     steps:
       - name: Delay for 15 mins
-        run: sleep 900     
+        run: sleep 10  
       
   Run_staging_imaging_pipeline:
     needs: [Throttling_update_1, Run_staging_btms_pipeline, Run_staging_btms_history_pipeline]
