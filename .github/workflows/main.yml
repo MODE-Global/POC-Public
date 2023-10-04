@@ -1,4 +1,4 @@
-name: Database Sync - biweekly
+name: Database Sync - Tuesday
 on:
   workflow_dispatch:
   schedule:
